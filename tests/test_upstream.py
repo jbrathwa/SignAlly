@@ -107,15 +107,56 @@ def test_data_lines_reach_on_event(fake):
 
 
 def test_a_comment_line_resets_the_liveness_timer(fake):
-    """An idle signer produces no events for minutes; : ping is all there is."""
+    """An idle signer produces no events for minutes; : ping is all there is.
+
+    The gap between pings must exceed READ_TICK_S (0.5 s), or the read loop
+    never actually waits and the test proves nothing about what happens when
+    it does — which is how the reconnect storm this file now guards against
+    survived a green suite.
+    """
     offline = threading.Event()
     up = Upstream(fake.url, on_event=lambda e: None, on_offline=offline.set,
-                  on_connect=lambda: None, offline_after=0.6)
+                  on_connect=lambda: None, offline_after=2.5)
     up.start()
     try:
-        for _ in range(6):
+        for _ in range(4):
             fake.lines.append(b": ping\n\n")
-            time.sleep(0.15)
+            time.sleep(1.0)
+        assert not offline.is_set()
+    finally:
+        up.stop()
+
+
+def test_the_real_two_second_heartbeat_neither_reconnects_nor_loses_events(fake):
+    """The cadence recognition actually runs at, which nothing else exercises.
+
+    A socket read timeout used as a wake-up tick poisons the file object the
+    first time it fires — CPython latches SocketIO._timeout_occurred and every
+    later read raises OSError("cannot read from timed out object") — so the
+    stream tore itself down roughly every half second. Measured against this
+    cadence that was 6 connections in 8 s, every event in a gap longer than
+    the tick dropped, and an offline watchdog that could never fire because
+    each reconnect touched the liveness timer.
+
+    All three failures are one assertion set: one connection across several
+    heartbeats, and an event three seconds after the last line still arriving.
+    """
+    events = []
+    offline = threading.Event()
+    up = Upstream(fake.url, on_event=events.append, on_offline=offline.set,
+                  on_connect=lambda: None, backoff=(0.05, 0.1))
+    up.start()
+    try:
+        assert wait_for(lambda: fake.connections >= 1)
+        for _ in range(2):
+            time.sleep(2.0)
+            fake.lines.append(b": ping\n\n")
+        assert fake.connections == 1, "reconnected across a plain heartbeat"
+
+        time.sleep(3.0)  # a signer pausing between signs
+        fake.lines.append(b'data: {"e":"armed"}\n\n')
+        assert wait_for(lambda: events == [{"e": "armed"}], timeout=3.0)
+        assert fake.connections == 1
         assert not offline.is_set()
     finally:
         up.stop()
@@ -235,13 +276,13 @@ def test_a_raising_on_event_with_a_non_dict_payload_does_not_tear_down_the_strea
 
 
 def test_stop_returns_promptly_even_mid_read(fake):
-    """Regression guard for the bounded read timeout in _read_loop.
+    """Regression guard for the bounded wait in _pump.
 
-    With the reader blocked in a read with no data pending, stop() must
-    return within a bound well short of the thread.join(timeout=2.0) inside
-    it — a regression to an unbounded read (timeout=None) would leave the
-    reader thread unable to notice _stopping until data arrives, making this
-    take the full join timeout instead.
+    With no data pending, stop() must return within a bound well short of the
+    thread.join(timeout=2.0) inside it. The reader waits in select() for
+    READ_TICK_S, not in the read itself, so it notices _stopping on the next
+    tick; a regression to an unguarded blocking read would leave it unable to
+    notice until data arrives, making this take the full join timeout instead.
     """
     up = Upstream(fake.url, on_event=lambda e: None, on_offline=lambda: None,
                   on_connect=lambda: None)
