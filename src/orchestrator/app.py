@@ -19,6 +19,11 @@ log = logging.getLogger(__name__)
 _LEVELS = {"debug": logging.DEBUG, "info": logging.INFO,
            "warning": logging.WARNING, "error": logging.ERROR}
 
+# Outstanding seqs are bounded. The panel is not obliged to ack — the courier
+# rewrite that would make it do so is a follow-up — so an unbounded set would
+# grow for as long as the process runs.
+OUTSTANDING_MAX = 256
+
 
 class Orchestrator:
     def __init__(self, phrases, hub, player, upstream):
@@ -30,6 +35,8 @@ class Orchestrator:
         self._state = DeviceState()
         self._started_at = time.monotonic()
         self._acks = 0
+        self._acks_unknown = 0
+        self._outstanding: dict[int, None] = {}  # emitted seqs, oldest first
 
     @property
     def state(self) -> DeviceState:
@@ -52,10 +59,45 @@ class Orchestrator:
         for level, message in outcome.logs:
             log.log(_LEVELS.get(level, logging.INFO), "%s", message)
         for message in outcome.messages:
-            self._hub.publish(message)
+            self._track(self._hub.publish(message))
         if isinstance(outcome, core.Outcome):
             for gloss in outcome.audio:
                 self._player.play(gloss, muted=outcome.state.muted)
+
+    def _track(self, stamped: dict) -> None:
+        """Caller holds the lock. Hold a `seq` open until the panel acks it."""
+        seq = stamped.get("seq")
+        if seq is None:
+            return  # `hello` is not stamped and is never acked
+        self._outstanding[seq] = None
+        while len(self._outstanding) > OUTSTANDING_MAX:
+            aged = next(iter(self._outstanding))
+            del self._outstanding[aged]
+            log.debug("seq %d aged out of the outstanding set unacked", aged)
+
+    def _match_ack(self, seq) -> None:
+        """Caller holds the lock. section 5: an ack is *matched* against emitted seq.
+
+        Counting acks is not matching them. To a counter, a panel acking one
+        seq eleven times and a panel acking eleven distinct seqs are the same
+        thing, an ack for a line never sent is invisible, and `sent - received`
+        can go negative. Discarding from the outstanding set instead makes each
+        of those show up as what it is.
+        """
+        self._acks += 1
+        if not isinstance(seq, int) or isinstance(seq, bool):
+            self._acks_unknown += 1
+            log.warning("ack carrying a non-integer seq %r", seq)
+            return
+        if seq in self._outstanding:
+            del self._outstanding[seq]
+            return
+        if 1 <= seq <= self._hub.seq:
+            log.debug("ack for seq %d, already matched or aged out", seq)
+        else:
+            self._acks_unknown += 1
+            log.warning("ack for seq %d, which was never emitted (highest is %d)",
+                        seq, self._hub.seq)
 
     def on_recognition_event(self, event: dict) -> None:
         with self._lock:
@@ -98,7 +140,7 @@ class Orchestrator:
         with self._lock:
             outcome = core.handle_uplink(msg, self._state)
             if msg.get("t") == "ack":
-                self._acks += 1
+                self._match_ack(msg.get("seq"))
             self._apply(outcome)
             request = outcome.capture_request
         if request is None:
@@ -110,6 +152,8 @@ class Orchestrator:
     def health(self) -> dict:
         with self._lock:
             state = self._state
+            outstanding = len(self._outstanding)
+            received, unknown = self._acks, self._acks_unknown
         return {
             "ok": self._upstream.connected and not state.offline,
             "recognition_connected": self._upstream.connected,
@@ -121,8 +165,8 @@ class Orchestrator:
             "seq": self._hub.seq,
             "subscribers": self._hub.subscribers,
             "dropped": self._hub.dropped,
-            "acks": {"sent": self._hub.sent, "received": self._acks},
-            "unmatched_acks": self._hub.sent - self._acks,
+            "acks": {"sent": self._hub.sent, "received": received, "unknown": unknown},
+            "unmatched_acks": outstanding,
             "phrases": len(self._phrases),
             "audio": {"played": self._player.played, "skipped": self._player.skipped,
                       "failed": self._player.failed},

@@ -61,9 +61,12 @@ def post(base, payload: bytes):
         return response.status
 
 
+def health(base):
+    return json.loads(urllib.request.urlopen(f"{base}/health", timeout=3).read())
+
+
 def subscriber_count(base):
-    health = json.loads(urllib.request.urlopen(f"{base}/health", timeout=3).read())
-    return health["subscribers"]
+    return health(base)["subscribers"]
 
 
 def test_a_whole_session_end_to_end(rig):
@@ -97,18 +100,40 @@ def test_a_whole_session_end_to_end(rig):
 
 
 def test_seq_is_contiguous_and_every_ack_is_matched(rig):
-    """DoD 6."""
+    """DoD 6.
+
+    Read the lines that were actually emitted, ack exactly those, and watch the
+    outstanding set empty. Comparing two counters proves neither half of the
+    name: it never reads /events, so it says nothing about contiguity, and a
+    panel acking one seq eleven times scores the same as one acking eleven.
+    """
     base, fake, app, hub, _ = rig
-    post(base, b'{"t":"button","b":"start"}')
-    for n in range(10):
+    reader = []
+    thread = threading.Thread(target=lambda: reader.extend(collect(base, 12)), daemon=True)
+    thread.start()
+    assert wait_for(lambda: subscriber_count(base) >= 1, timeout=5.0)
+
+    post(base, b'{"t":"button","b":"start"}')  # state:listening, seq 1
+    for _ in range(10):
         fake.lines.append(b'data: {"e":"unclear","conf":0.3}\n\n')
-    assert wait_for(lambda: hub.seq >= 11)
-    for seq in range(1, hub.seq + 1):
+    thread.join(timeout=8)
+
+    seqs = [msg["seq"] for msg in reader if "seq" in msg]
+    assert seqs == list(range(1, 12))
+    assert health(base)["unmatched_acks"] == 11  # emitted, none acked yet
+
+    for seq in seqs:
         post(base, json.dumps({"t": "ack", "seq": seq}).encode())
-    health = json.loads(urllib.request.urlopen(f"{base}/health", timeout=3).read())
-    assert health["acks"]["received"] == health["acks"]["sent"]
-    assert health["unmatched_acks"] == 0
-    assert health["dropped"] == 0
+    assert health(base)["unmatched_acks"] == 0
+    assert health(base)["acks"]["unknown"] == 0
+
+    # Neither of these is a match. A counter scores both as one more ack.
+    post(base, json.dumps({"t": "ack", "seq": seqs[0]}).encode())  # acked twice
+    post(base, json.dumps({"t": "ack", "seq": 9999}).encode())  # never emitted
+    after = health(base)
+    assert after["unmatched_acks"] == 0
+    assert after["acks"]["unknown"] == 1
+    assert after["dropped"] == 0
 
 
 def test_the_whole_recognition_fixture_replays_without_raising(rig):
