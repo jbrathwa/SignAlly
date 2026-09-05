@@ -14,6 +14,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 
 from .phrases import PhraseTable
+from .protocol import cap_text
 
 SCREEN_IDLE = "idle"
 SCREEN_LISTENING = "listening"
@@ -49,8 +50,41 @@ def _to_screen(state: DeviceState, screen: str) -> Outcome:
     return Outcome(new, messages=(state_message(new),))
 
 
+def _recognised(event: dict, state: DeviceState, phrases: PhraseTable) -> Outcome:
+    gloss = event.get("gloss")
+    conf = event.get("conf", 0.0)
+    logs = [("info", f"recognised {gloss!r} conf={conf} top3={event.get('top3')}")]
+    if event.get("take_usable") is False:
+        logs.append(("warning", f"take_usable=False for {gloss!r} — camera saw it poorly"))
+
+    phrase = phrases.get(gloss)
+    if phrase is None:
+        # A recognised sign the device cannot say. `unclear` is the honest answer;
+        # a bare English gloss on screen would read as a phrase it never said.
+        logs.append(("warning", f"no phrase row for gloss {gloss!r}; emitting unclear"))
+        return Outcome(state, messages=({"t": "unclear", "conf": conf},), logs=tuple(logs))
+
+    message = {"t": "result", "id": gloss, "text": cap_text(phrase.text), "conf": conf}
+    return Outcome(state, messages=(message,), audio=(gloss,), logs=tuple(logs))
+
+
+def _unclear(event: dict, state: DeviceState) -> Outcome:
+    logs = [("info", f"unclear conf={event.get('conf', 0.0)} "
+                     f"reason={event.get('reason')} n_frames={event.get('n_frames')}")]
+    return Outcome(state, messages=({"t": "unclear", "conf": event.get("conf", 0.0)},),
+                   logs=tuple(logs))
+
+
 def translate(event: dict, state: DeviceState, phrases: PhraseTable) -> Outcome:
     kind = event.get("e")
+
+    if kind == "fault":
+        text = cap_text(event.get("msg") or "Recognition fault")
+        return Outcome(
+            state,
+            messages=({"t": "error", "text": text},),
+            logs=(("error", f"fault {event.get('code')!r}: {event.get('msg')!r}"),),
+        )
 
     if not state.capture_active:
         return Outcome(state, logs=(("debug", f"ignored {kind!r} while not capturing"),))
@@ -59,5 +93,9 @@ def translate(event: dict, state: DeviceState, phrases: PhraseTable) -> Outcome:
         return _to_screen(state, SCREEN_LISTENING)
     if kind == "classifying":
         return _to_screen(state, SCREEN_ANALYZING)
+    if kind == "recognised":
+        return _recognised(event, state, phrases)
+    if kind == "unclear":
+        return _unclear(event, state)
 
     return Outcome(state, logs=(("info", f"unhandled recognition event {kind!r}"),))
