@@ -40,6 +40,14 @@ class Outcome:
     logs: tuple[tuple[str, str], ...] = ()
 
 
+@dataclass(frozen=True)
+class UplinkOutcome:
+    state: DeviceState
+    messages: tuple[dict, ...] = ()
+    capture_request: bool | None = None
+    logs: tuple[tuple[str, str], ...] = ()
+
+
 def state_message(state: DeviceState) -> dict:
     return {"t": "state", "s": state.screen}
 
@@ -145,3 +153,54 @@ def mark_online(state: DeviceState) -> Outcome:
     new = replace(state, offline=False)
     return Outcome(new, messages=(state_message(new),),
                    logs=(("info", "recognition stream back"),))
+
+
+def handle_uplink(msg: dict, state: DeviceState) -> UplinkOutcome:
+    """The panel's half. Unknown types are ignored, never rejected — rule 1."""
+    kind = msg.get("t")
+
+    if kind == "button":
+        button = msg.get("b")
+        if button == "start":
+            return UplinkOutcome(state, capture_request=True,
+                                 logs=(("info", "button start"),))
+        if button == "stop":
+            return UplinkOutcome(state, capture_request=False,
+                                 logs=(("info", "button stop"),))
+        if button == "mute":
+            on = bool(msg.get("on", False))
+            return UplinkOutcome(replace(state, muted=on),
+                                 logs=(("info", f"button mute on={on}"),))
+        return UplinkOutcome(state, logs=(("info", f"unknown button {button!r}"),))
+
+    if kind == "hello":
+        return UplinkOutcome(
+            state,
+            messages=({"t": "hello", "v": 1}, state_message(state)),
+            logs=(("info", f"panel hello fw={msg.get('fw')!r}"),),
+        )
+
+    if kind == "ack":
+        # A diagnostic, never flow control. The panel's ACK is the only evidence
+        # a line crossed the wire, but a missing one must never stall anything.
+        return UplinkOutcome(state, logs=(("debug", f"ack seq={msg.get('seq')}"),))
+
+    return UplinkOutcome(state, logs=(("info", f"unknown uplink type {kind!r}"),))
+
+
+def apply_capture_result(state: DeviceState, requested: bool, ok: bool) -> Outcome:
+    """Fold the result of POST /capture back into device state."""
+    if not requested:
+        new = replace(state, screen=SCREEN_IDLE, capture_active=False, tracking_status="ok")
+        logs = () if ok else (("error", "capture stop POST failed; going idle regardless"),)
+        return Outcome(new, messages=(state_message(new),), logs=logs)
+
+    if not ok:
+        return Outcome(
+            state,
+            messages=({"t": "error", "text": "Recognition offline"},),
+            logs=(("error", "capture start POST failed; staying idle"),),
+        )
+
+    new = replace(state, screen=SCREEN_LISTENING, capture_active=True, tracking_status="ok")
+    return Outcome(new, messages=(state_message(new),))
