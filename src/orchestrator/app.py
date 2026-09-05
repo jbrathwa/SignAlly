@@ -66,13 +66,33 @@ class Orchestrator:
             self._apply(core.mark_offline(self._state))
 
     def on_connect(self) -> None:
-        """Recognition's capture flag does not survive its restart; re-assert it."""
+        """Recognition's capture flag does not survive its restart; re-assert it.
+
+        The re-assert's result is folded back through the core rather than
+        discarded. A stream that reconnects while `POST /capture` fails means
+        recognition is *not* capturing, and holding `capture_active=True` and
+        `screen="listening"` locally would have the panel claim the device is
+        listening while nothing is — the same objection section 3 raises against the
+        start button.
+
+        On success there is nothing to fold: local state already says exactly
+        what recognition has just been told, and `apply_capture_result` would
+        only spend a `seq` re-stating it. On failure `mark_online` is skipped,
+        because it would clear the `offline` latch `apply_capture_result` has
+        just set and take the error off the screen the panel needs it on.
+
+        This POST is synchronous on the reader thread. It is affordable here
+        only because it now runs once per genuine outage rather than on every
+        reconnect; the events it delays sit in the TCP buffer, not on the floor.
+        """
         with self._lock:
             wanted = self._state.capture_active
-        if wanted:
-            self._upstream.set_capture(True)
+        ok = self._upstream.set_capture(True) if wanted else True
         with self._lock:
-            self._apply(core.mark_online(self._state))
+            if ok:
+                self._apply(core.mark_online(self._state))
+            else:
+                self._apply(core.apply_capture_result(self._state, True, ok))
 
     def on_uplink(self, msg: dict) -> None:
         with self._lock:

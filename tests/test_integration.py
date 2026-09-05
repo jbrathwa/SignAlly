@@ -148,6 +148,27 @@ def test_killing_recognition_reports_offline_and_recovers(rig):
     assert json.loads(urllib.request.urlopen(f"{base}/ping", timeout=3).read()) == {"ok": True}
 
 
+def test_a_reconnect_whose_capture_re_assert_fails_does_not_claim_to_be_listening(rig):
+    """The re-assert's result must be folded back, not discarded.
+
+    Recognition comes back, but its /capture POST fails. Keeping
+    capture_active=True and screen="listening" would have the panel report the
+    device as listening while nothing is capturing.
+    """
+    base, fake, app, hub, _ = rig
+    post(base, b'{"t":"button","b":"start"}')
+    assert wait_for(lambda: app.state.capture_active)
+
+    fake.cut.set()
+    assert wait_for(lambda: app.state.offline, timeout=8)
+    fake.capture_status = 500
+    fake.cut.clear()
+
+    assert wait_for(lambda: not app.state.capture_active, timeout=10)
+    assert app.state.screen == "idle"
+    assert app.state.offline is True
+
+
 def test_ping_keeps_answering_while_recognition_is_dead(rig):
     base, fake, app, hub, _ = rig
     fake.cut.set()

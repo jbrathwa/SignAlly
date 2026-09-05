@@ -196,10 +196,22 @@ def apply_capture_result(state: DeviceState, requested: bool, ok: bool) -> Outco
         return Outcome(new, messages=(state_message(new),), logs=logs)
 
     if not ok:
+        # Latch `offline`. Without it the watchdog emits a second identical
+        # error moments later, and — worse — `mark_online` has nothing to clear
+        # if recognition recovers on its own, so the panel sits on the error
+        # screen until someone presses start again.
+        #
+        # Going idle is what makes this honest on the *reconnect* path, where
+        # the caller's state already says capturing: claiming `listening` while
+        # recognition is not capturing would make the protocol lie about what
+        # the device is doing (section 3). From the start button the state is idle
+        # already and this changes nothing.
+        new = replace(state, screen=SCREEN_IDLE, capture_active=False,
+                      tracking_status="ok", offline=True)
         return Outcome(
-            state,
+            new,
             messages=({"t": "error", "text": "Recognition offline"},),
-            logs=(("error", "capture start POST failed; staying idle"),),
+            logs=(("error", "capture start POST failed; idle, offline latched"),),
         )
 
     new = replace(state, screen=SCREEN_LISTENING, capture_active=True, tracking_status="ok")

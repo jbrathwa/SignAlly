@@ -8,6 +8,8 @@ from orchestrator.core import (
     DeviceState,
     apply_capture_result,
     handle_uplink,
+    mark_offline,
+    mark_online,
 )
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -86,6 +88,28 @@ def test_failed_start_stays_idle_and_reports_offline():
     out = apply_capture_result(DeviceState(), requested=True, ok=False)
     assert out.state.screen == SCREEN_IDLE
     assert out.state.capture_active is False
+    assert out.messages == ({"t": "error", "text": "Recognition offline"},)
+
+
+def test_a_failed_start_latches_offline_so_recovery_can_clear_it():
+    """Unlatched, the watchdog repeats the error moments later, and nothing
+    ever clears it: mark_online emits nothing when nothing was latched, so the
+    panel sits on the error screen until someone presses start again."""
+    out = apply_capture_result(DeviceState(), requested=True, ok=False)
+    assert out.state.offline is True
+    assert mark_offline(out.state).messages == ()
+    assert mark_online(out.state).messages == ({"t": "state", "s": "idle"},)
+
+
+def test_a_failed_re_assert_from_a_live_state_goes_idle():
+    """The reconnect path. Recognition is not capturing, so `listening` would
+    be the protocol lying about what the device is doing."""
+    live = DeviceState(screen=SCREEN_LISTENING, capture_active=True,
+                       tracking_status="clipped")
+    out = apply_capture_result(live, requested=True, ok=False)
+    assert out.state.screen == SCREEN_IDLE
+    assert out.state.capture_active is False
+    assert out.state.tracking_status == "ok"
     assert out.messages == ({"t": "error", "text": "Recognition offline"},)
 
 
