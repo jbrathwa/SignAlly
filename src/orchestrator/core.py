@@ -191,7 +191,8 @@ def handle_uplink(msg: dict, state: DeviceState) -> UplinkOutcome:
 def apply_capture_result(state: DeviceState, requested: bool, ok: bool) -> Outcome:
     """Fold the result of POST /capture back into device state."""
     if not requested:
-        new = replace(state, screen=SCREEN_IDLE, capture_active=False, tracking_status="ok")
+        new = replace(state, screen=SCREEN_IDLE, capture_active=False,
+                      tracking_status="ok", offline=False)
         logs = () if ok else (("error", "capture stop POST failed; going idle regardless"),)
         return Outcome(new, messages=(state_message(new),), logs=logs)
 
@@ -214,5 +215,6 @@ def apply_capture_result(state: DeviceState, requested: bool, ok: bool) -> Outco
             logs=(("error", "capture start POST failed; idle, offline latched"),),
         )
 
-    new = replace(state, screen=SCREEN_LISTENING, capture_active=True, tracking_status="ok")
+    new = replace(state, screen=SCREEN_LISTENING, capture_active=True,
+                  tracking_status="ok", offline=False)
     return Outcome(new, messages=(state_message(new),))

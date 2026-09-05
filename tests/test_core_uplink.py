@@ -132,3 +132,35 @@ def test_stop_resets_tracking_so_a_stale_error_is_not_suppressed():
 def test_capture_result_preserves_the_mute_gate():
     out = apply_capture_result(DeviceState(muted=True), requested=True, ok=True)
     assert out.state.muted is True
+
+
+def test_a_successful_start_after_a_prior_failure_clears_the_latch():
+    """A capture POST that succeeds is direct proof recognition is reachable."""
+    failed = apply_capture_result(DeviceState(), requested=True, ok=False)
+    assert failed.state.offline is True
+    out = apply_capture_result(failed.state, requested=True, ok=True)
+    assert out.state.offline is False
+    assert out.messages == ({"t": "state", "s": "listening"},)
+
+
+def test_a_successful_stop_after_a_prior_failure_clears_the_latch():
+    failed = apply_capture_result(DeviceState(), requested=True, ok=False)
+    assert failed.state.offline is True
+    out = apply_capture_result(failed.state, requested=False, ok=True)
+    assert out.state.offline is False
+    assert out.messages == ({"t": "state", "s": "idle"},)
+
+
+def test_offline_latch_is_usable_again_after_recovery_via_capture_success():
+    """The regression this fix targets: without clearing the latch on a
+    successful capture, a later genuine outage never reaches the panel
+    because `mark_offline` short-circuits on the stale latch. Recovering
+    through a successful capture (not just a reconnect) must leave the
+    latch armed so the next real outage is reported."""
+    failed = apply_capture_result(DeviceState(), requested=True, ok=False)
+    recovered = apply_capture_result(failed.state, requested=True, ok=True)
+    assert recovered.state.offline is False
+
+    out = mark_offline(recovered.state)
+    assert out.state.offline is True
+    assert out.messages == ({"t": "error", "text": "Recognition offline"},)
