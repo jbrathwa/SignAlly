@@ -1,6 +1,9 @@
+import gc
 import json
+import logging
 import threading
 import time
+import warnings
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
@@ -19,6 +22,7 @@ class FakeRecognition(ThreadingHTTPServer):
         self.lines: list[bytes] = []
         self.capture = False
         self.capture_calls: list[bool] = []
+        self.capture_status = 200  # settable to make /capture answer non-2xx
         self.cut = threading.Event()
         self.connections = 0
 
@@ -59,8 +63,11 @@ class _Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         body = self.rfile.read(int(self.headers["Content-Length"]))
         active = bool(json.loads(body)["active"])
-        self.server.capture = active
         self.server.capture_calls.append(active)
+        if self.server.capture_status != 200:
+            self.send_error(self.server.capture_status)
+            return
+        self.server.capture = active
         payload = json.dumps({"capture": active}).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
@@ -172,3 +179,77 @@ def test_stop_is_idempotent(fake):
     up.start()
     up.stop()
     up.stop()
+
+
+def test_set_capture_closes_the_error_body_on_a_non_2xx_response(fake, caplog):
+    """A non-2xx POST /capture raises HTTPError, itself an open response body.
+
+    Left unclosed, its __del__ eventually emits a ResourceWarning during
+    garbage collection — nondeterministically, often attributed to whatever
+    test happens to be running when the collector gets to it.
+
+    Two things make this detectable deterministically, right here:
+    - simplefilter("always") + record=True, rather than "error": promoting
+      the warning to an error would raise it *inside* __del__, where Python
+      treats it as an unraisable exception and silently swallows it instead
+      of propagating it to a normal try/except.
+    - caplog.at_level(CRITICAL, ...) on this module's logger: set_capture's
+      own `log.error(..., exc)` call would otherwise hand pytest's log
+      capture a LogRecord whose args tuple holds a live reference to `exc`,
+      keeping the HTTPError alive past our gc.collect() and hiding the leak
+      until some later, unrelated test happens to trigger collection.
+    """
+    fake.capture_status = 500
+    up = Upstream(fake.url, on_event=lambda e: None, on_offline=lambda: None,
+                  on_connect=lambda: None)
+    with caplog.at_level(logging.CRITICAL, logger="orchestrator.upstream"):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            assert up.set_capture(True) is False
+            gc.collect()
+    leaks = [w for w in caught if issubclass(w.category, ResourceWarning)]
+    assert leaks == [], [str(w.message) for w in leaks]
+
+
+def test_a_raising_on_event_with_a_non_dict_payload_does_not_tear_down_the_stream(fake):
+    """`data: 42` is valid JSON but not a dict; on_event may still raise on it.
+
+    The failure path must not itself raise (e.g. via event.get on a non-dict)
+    and escape into the read loop — that would tear down a healthy stream
+    over one bad event. A stable connection count is the assertion that
+    matters, not what the callback did with the value.
+    """
+    def boom(event):
+        raise ValueError("boom")
+
+    up = Upstream(fake.url, on_event=boom, on_offline=lambda: None,
+                  on_connect=lambda: None, backoff=(0.05, 0.1))
+    up.start()
+    try:
+        assert wait_for(lambda: fake.connections >= 1)
+        fake.lines.append(b"data: 42\n\n")
+        time.sleep(0.3)
+        assert fake.connections == 1
+    finally:
+        up.stop()
+
+
+def test_stop_returns_promptly_even_mid_read(fake):
+    """Regression guard for the bounded read timeout in _read_loop.
+
+    With the reader blocked in a read with no data pending, stop() must
+    return within a bound well short of the thread.join(timeout=2.0) inside
+    it — a regression to an unbounded read (timeout=None) would leave the
+    reader thread unable to notice _stopping until data arrives, making this
+    take the full join timeout instead.
+    """
+    up = Upstream(fake.url, on_event=lambda e: None, on_offline=lambda: None,
+                  on_connect=lambda: None)
+    up.start()
+    try:
+        assert wait_for(lambda: up.connected)
+    finally:
+        started = time.monotonic()
+        up.stop()
+        elapsed = time.monotonic() - started
+    assert elapsed < 1.5

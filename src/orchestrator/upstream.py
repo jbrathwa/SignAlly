@@ -84,6 +84,8 @@ class Upstream:
                 payload = json.loads(response.read().decode("utf-8"))
             return bool(payload.get("capture")) == bool(active)
         except Exception as exc:  # noqa: BLE001 - a dead upstream is expected
+            if isinstance(exc, urllib.error.HTTPError):
+                exc.close()  # unclosed error bodies (e.g. a 500) leak a socket
             log.error("POST /capture(%s) failed: %r", active, exc)
             return False
 
@@ -153,4 +155,8 @@ class Upstream:
         try:
             self._on_event(event)
         except Exception:  # noqa: BLE001 - one bad event must not kill the reader
-            log.exception("on_event callback raised for %r", event.get("e"))
+            # event need not be a dict — `data: 42` and `data: [1,2]` are both
+            # valid JSON — so build the log identifier defensively; no shape
+            # of event may raise here and escape into the outer read loop.
+            gloss = event.get("e") if isinstance(event, dict) else None
+            log.exception("on_event callback raised for %r", gloss)
