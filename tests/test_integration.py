@@ -1,4 +1,5 @@
 import json
+import queue
 import threading
 import time
 import urllib.request
@@ -24,6 +25,13 @@ def rig(tmp_path):
     fake = FakeRecognition().start()
     hub = EventHub()
     phrases = PhraseTable.load(REPO / "phrases.json")
+    # Real wav files under tmp_path. With an empty audio directory every gloss
+    # is skipped as a missing file, `played` is [] no matter what happened, and
+    # "plays nothing" stops discriminating between any two glosses.
+    for gloss in phrases.glosses():
+        wav = tmp_path / phrases.get(gloss).audio
+        wav.parent.mkdir(parents=True, exist_ok=True)
+        wav.write_bytes(b"RIFF")
     played = []
     player = Player(phrases, tmp_path, command=["fake"], runner=played.append)
     upstream = Upstream(fake.url, offline_after=0.6, backoff=(0.1, 0.2))
@@ -53,6 +61,16 @@ def collect(base, count, timeout=8.0):
             if line.startswith("data:"):
                 seen.append(json.loads(line.removeprefix("data:").strip()))
     return seen
+
+
+def drain(q):
+    """Everything queued for one hub subscriber, without blocking."""
+    out = []
+    while True:
+        try:
+            out.append(q.get_nowait())
+        except queue.Empty:
+            return out
 
 
 def post(base, payload: bytes):
@@ -97,6 +115,8 @@ def test_a_whole_session_end_to_end(rig):
         {"t": "result", "seq": 3, "id": "hello", "text": "Hello", "conf": 0.92},
         {"t": "state", "seq": 4, "s": "idle"},
     ]
+    assert wait_for(lambda: len(played) == 1)
+    assert Path(played[0][-1]).name == "hello.wav"
 
 
 def test_seq_is_contiguous_and_every_ack_is_matched(rig):
@@ -136,24 +156,61 @@ def test_seq_is_contiguous_and_every_ack_is_matched(rig):
     assert after["dropped"] == 0
 
 
-def test_the_whole_recognition_fixture_replays_without_raising(rig):
-    """Every event type, both unclear shapes, all three fault codes. DoD 4."""
+def test_the_whole_recognition_fixture_replays_to_the_expected_message_sequence(rig):
+    """Every event type, both unclear shapes, all three fault codes. DoD 4.
+
+    Spec section 10 asks for the message *sequence*, not for evidence that something
+    came out. "at least three messages, nothing dropped" is true of an entire
+    class of translation regressions.
+
+    Note seq 4: `clipped` -> `hands_hidden` re-emits state, because the trigger
+    is leaving an error status rather than arriving at `ok` (section 4).
+    """
     base, fake, app, hub, _ = rig
-    post(base, b'{"t":"button","b":"start"}')
-    for line in (FIXTURES / "recognition-events-v1.jsonl").read_text().splitlines():
-        app.on_recognition_event(json.loads(line))
-    # The three fault events alone guarantee output, gate or no gate.
-    assert hub.seq >= 3
-    health = json.loads(urllib.request.urlopen(f"{base}/health", timeout=3).read())
-    assert health["dropped"] == 0
+    subscriber = hub.subscribe()
+    try:
+        post(base, b'{"t":"button","b":"start"}')  # state:listening, seq 1
+        drain(subscriber)
+        for line in (FIXTURES / "recognition-events-v1.jsonl").read_text().splitlines():
+            app.on_recognition_event(json.loads(line))
+        assert drain(subscriber) == [
+            {"t": "error", "seq": 2, "text": "Nobody in frame"},
+            {"t": "error", "seq": 3, "text": "Move back"},
+            {"t": "state", "seq": 4, "s": "listening"},
+            {"t": "state", "seq": 5, "s": "analyzing"},
+            {"t": "result", "seq": 6, "id": "hello", "text": "Hello", "conf": 0.92},
+            {"t": "unclear", "seq": 7, "conf": 0.35},
+            {"t": "unclear", "seq": 8, "conf": 0.0},
+            {"t": "error", "seq": 9, "text": "camera 2 stopped returning frames"},
+            {"t": "error", "seq": 10, "text": "camera 2 opens but returns no frames"},
+            {"t": "error", "seq": 11, "text": "classify() raised RuntimeError"},
+        ]
+    finally:
+        hub.unsubscribe(subscriber)
+    assert health(base)["dropped"] == 0
 
 
 def test_an_unknown_gloss_emits_unclear_and_plays_nothing(rig):
-    """The 262-class head's normal case until S7 lands."""
+    """The 262-class head's normal case until S7 lands.
+
+    Both halves need a gloss that *does* play as the control, or "played
+    nothing" says nothing: with no wav files on disk it holds for every gloss
+    in the table.
+    """
     base, fake, app, hub, played = rig
-    post(base, b'{"t":"button","b":"start"}')
-    app.on_recognition_event({"e": "recognised", "gloss": "truck", "conf": 0.81})
-    assert played == []
+    subscriber = hub.subscribe()
+    try:
+        post(base, b'{"t":"button","b":"start"}')
+        drain(subscriber)
+        app.on_recognition_event({"e": "recognised", "gloss": "truck", "conf": 0.81})
+        assert drain(subscriber) == [{"t": "unclear", "seq": 2, "conf": 0.81}]
+        assert played == []
+
+        app.on_recognition_event({"e": "recognised", "gloss": "hello", "conf": 0.92})
+        assert wait_for(lambda: len(played) == 1)
+        assert Path(played[0][-1]).name == "hello.wav"
+    finally:
+        hub.unsubscribe(subscriber)
 
 
 def test_killing_recognition_reports_offline_and_recovers(rig):
