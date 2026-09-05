@@ -156,6 +156,29 @@ def test_seq_is_contiguous_and_every_ack_is_matched(rig):
     assert after["dropped"] == 0
 
 
+def test_an_ack_of_seq_zero_is_the_hello_ack_not_an_anomaly(rig):
+    """Found by running the console against a live orchestrator on the board.
+
+    `hello` carries no seq, and the panel firmware answers it with an ack of
+    seq 0 — its own expected_flow.txt documents that convention. Our counter
+    starts at 1, so 0 is never one of ours, and scoring it as an anomaly ticked
+    the counter on every panel boot, drowning the signal it exists for. The
+    firmware is already written; the orchestrator tolerates what the hardware
+    actually sends.
+    """
+    base, fake, app, hub, _ = rig
+    post(base, b'{"t":"hello","v":1,"fw":"0.1.0"}')
+    post(base, b'{"t":"ack","seq":0}')
+
+    after = health(base)
+    assert after["acks"]["received"] == 1
+    assert after["acks"]["unknown"] == 0
+    # Answering hello resends `state`, which consumes a seq and is genuinely
+    # unacked — so one outstanding here is correct, and the seq-0 ack neither
+    # matched it nor counted against it.
+    assert after["unmatched_acks"] == 1
+
+
 def test_the_whole_recognition_fixture_replays_to_the_expected_message_sequence(rig):
     """Every event type, both unclear shapes, all three fault codes. DoD 4.
 

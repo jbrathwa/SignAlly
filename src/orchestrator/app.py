@@ -89,6 +89,14 @@ class Orchestrator:
             self._acks_unknown += 1
             log.warning("ack carrying a non-integer seq %r", seq)
             return
+        if seq == 0:
+            # `hello` carries no seq, and the panel firmware answers it with an
+            # ack of seq 0 — its own expected_flow.txt documents the convention.
+            # Our counter starts at 1, so 0 is never one of ours; counting it as
+            # an anomaly would tick on every panel boot and drown the signal the
+            # counter exists for.
+            log.debug("ack seq 0 — the panel's hello ack")
+            return
         if seq in self._outstanding:
             del self._outstanding[seq]
             return

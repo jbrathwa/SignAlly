@@ -119,8 +119,10 @@ start_console() {
   command -v arduino-app-cli >/dev/null || { warn "skipping console — no arduino-app-cli"; return 0; }
   [ -d "$CONSOLE_APP" ] || { warn "skipping console — $CONSOLE_APP not found"; return 0; }
   info "starting App Lab console"
+  info "(first run downloads a Python into the container — this takes minutes,"
+  info " and looks like a hang. Later starts are quick.)"
   if arduino-app-cli app start "$CONSOLE_APP" > "$LOG_DIR/console.log" 2>&1; then
-    ok "console app started"
+    ok "console app started — http://$(hostname -I 2>/dev/null | awk '{print $1}'):7000"
   else
     fail "console app failed to start"
     tail -8 "$LOG_DIR/console.log" 2>/dev/null | sed 's/^/      /'
@@ -177,22 +179,29 @@ do_stop() {
 do_status() {
   bold "SignAlly — status"
 
+  # python3 rather than grep: `state` and `tracking` are null until warmup
+  # finishes, and a regex for a quoted string silently reports "?" for a field
+  # that is answering perfectly well.
+  probe() {
+    curl -s --max-time 3 "localhost:$1/health" 2>/dev/null \
+      | python3 -c "
+import json, sys
+try:
+    h = json.load(sys.stdin)
+except Exception:
+    print('unreadable health'); raise SystemExit
+print('  '.join(f'{k}={h.get(k)}' for k in sys.argv[1:]))
+" "${@:2}" 2>/dev/null
+  }
+
   if port_open "$REC_PORT"; then
-    local health fps state
-    health=$(curl -s --max-time 3 "localhost:$REC_PORT/health" 2>/dev/null)
-    fps=$(printf '%s' "$health" | grep -o '"fps": *[0-9.]*' | head -1 | grep -o '[0-9.]*$')
-    state=$(printf '%s' "$health" | grep -o '"state": *"[a-z]*"' | head -1 | grep -o '"[a-z]*"$' | tr -d '"')
-    ok "recognition   :$REC_PORT   fps=${fps:-?}  state=${state:-?}"
+    ok "recognition   :$REC_PORT   $(probe "$REC_PORT" ok fps state tracking)"
   else
     fail "recognition   :$REC_PORT   not listening"
   fi
 
   if port_open "$ORC_PORT"; then
-    local h connected screen
-    h=$(curl -s --max-time 3 "localhost:$ORC_PORT/health" 2>/dev/null)
-    connected=$(printf '%s' "$h" | grep -o '"recognition_connected": *[a-z]*' | grep -o '[a-z]*$')
-    screen=$(printf '%s' "$h" | grep -o '"screen": *"[a-z]*"' | grep -o '"[a-z]*"$' | tr -d '"')
-    ok "orchestrator  :$ORC_PORT   recognition_connected=${connected:-?}  screen=${screen:-?}"
+    ok "orchestrator  :$ORC_PORT   $(probe "$ORC_PORT" ok recognition_connected screen subscribers)"
   else
     fail "orchestrator  :$ORC_PORT   not listening"
   fi
@@ -206,6 +215,9 @@ do_status() {
   esac
 
   echo
+  local ip
+  ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+  info "console UI:  http://${ip:-<board-ip>}:7000"
   info "The physical CrowPanel is NOT part of this stack. The console app stands"
   info "in for it; the MCU sketch is untouched and its Bridge path is disabled."
 }
