@@ -1,4 +1,5 @@
 from pathlib import Path
+from unittest import mock
 
 from orchestrator.audio import Player
 from orchestrator.phrases import Phrase, PhraseTable
@@ -43,12 +44,23 @@ def test_a_missing_wav_is_skipped_not_raised(tmp_path):
     assert player.skipped == 1
 
 
+def test_a_stat_error_on_the_wav_is_skipped_not_raised(tmp_path):
+    calls = []
+    player = make_player(tmp_path, calls.append)
+    with mock.patch("pathlib.Path.is_file", side_effect=PermissionError("access denied")):
+        player.play("hello", muted=False)
+    player.close()
+    assert calls == []
+    assert player.skipped == 1
+
+
 def test_an_unknown_gloss_is_skipped(tmp_path):
     calls = []
     player = make_player(tmp_path, calls.append)
     player.play("truck", muted=False)
     player.close()
     assert calls == []
+    assert player.skipped == 1
 
 
 def test_a_failing_player_never_takes_the_process_down(tmp_path):
@@ -64,6 +76,7 @@ def test_a_failing_player_never_takes_the_process_down(tmp_path):
 def test_play_returns_before_the_runner_finishes(tmp_path):
     """A two-second wav must not stall event handling."""
     import threading
+    import time
 
     release = threading.Event()
     started = threading.Event()
@@ -73,8 +86,11 @@ def test_play_returns_before_the_runner_finishes(tmp_path):
         release.wait(5)
 
     player = make_player(tmp_path, slow)
+    start = time.monotonic()
     player.play("hello", muted=False)
+    elapsed = time.monotonic() - start
     assert started.wait(2)
+    assert elapsed < 0.5, f"play() took {elapsed}s, expected < 0.5s"
     release.set()
     player.close()
 

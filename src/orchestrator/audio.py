@@ -64,7 +64,13 @@ class Player:
             log.warning("no phrase row for %r; nothing to play", gloss)
             return
         path = self._base_dir / phrase.audio
-        if not path.is_file():
+        try:
+            is_file = path.is_file()
+        except OSError as exc:
+            self.skipped += 1
+            log.warning("cannot stat audio file %s: %r", path, exc)
+            return
+        if not is_file:
             self.skipped += 1
             log.warning("audio file missing, skipping: %s", path)
             return
@@ -78,8 +84,13 @@ class Player:
         if self._closed:
             return
         self._closed = True
-        self._queue.put(_STOP)
+        try:
+            self._queue.put(_STOP, timeout=1.0)
+        except queue.Full:
+            log.warning("audio queue full on shutdown; thread may not stop cleanly")
         self._thread.join(timeout=PLAY_TIMEOUT_S + 1)
+        if self._thread.is_alive():
+            log.warning("audio worker thread did not shut down within timeout")
 
     def _loop(self) -> None:
         while True:
