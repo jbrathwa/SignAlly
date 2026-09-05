@@ -1,0 +1,13 @@
+{"t":"hello","v":1}
+{"t":"state","seq":1,"s":"boot"}
+{"t":"state","seq":2,"s":"intro"}
+{"t":"state","seq":3,"s":"listening"}
+{"t":"state","seq":4,"s":"analyzing"}
+{"t":"result","seq":5,"id":"pain","text":"I have pain","conf":0.92}
+{"t":"unclear","seq":6,"conf":0.35}
+{"t":"unclear","seq":7,"conf":0.58}
+{"t":"state","seq":8,"s":"idle"}
+{"t":"error","seq":9,"text":"Camera not found"}
+{"t":"result","seq":10,"id":"water","text":"I need water","conf":0.71}
+{"t":"nosuchtype","seq":11,"whatever":true}
+{"t":"result","seq":12,"id":"help","text":"Please help me","conf":0.88,"future_field":"ignored"}

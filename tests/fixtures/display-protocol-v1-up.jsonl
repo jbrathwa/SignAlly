@@ -1,0 +1,6 @@
+{"t":"hello","v":1,"fw":"0.1.0"}
+{"t":"ack","seq":5}
+{"t":"button","b":"start"}
+{"t":"button","b":"stop"}
+{"t":"button","b":"mute","on":true}
+{"t":"button","b":"mute","on":false}

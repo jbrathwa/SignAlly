@@ -1,0 +1,19 @@
+{
+  "hello":         { "text": {"en": "Hello"},                  "audio": {"en": "audio/en/hello.wav"} },
+  "goodmorning":   { "text": {"en": "Good morning"},           "audio": {"en": "audio/en/goodmorning.wav"} },
+  "goodafternoon": { "text": {"en": "Good afternoon"},         "audio": {"en": "audio/en/goodafternoon.wav"} },
+  "goodnight":     { "text": {"en": "Good night"},             "audio": {"en": "audio/en/goodnight.wav"} },
+  "howareyou":     { "text": {"en": "How are you?"},           "audio": {"en": "audio/en/howareyou.wav"} },
+  "alright":       { "text": {"en": "I am alright"},           "audio": {"en": "audio/en/alright.wav"} },
+  "bad":           { "text": {"en": "I feel bad"},             "audio": {"en": "audio/en/bad.wav"} },
+  "happy":         { "text": {"en": "I am happy"},             "audio": {"en": "audio/en/happy.wav"} },
+  "sad":           { "text": {"en": "I am sad"},               "audio": {"en": "audio/en/sad.wav"} },
+  "healthy":       { "text": {"en": "I am healthy"},           "audio": {"en": "audio/en/healthy.wav"} },
+  "doctor":        { "text": {"en": "I need a doctor"},        "audio": {"en": "audio/en/doctor.wav"} },
+  "hospital":      { "text": {"en": "Where is the hospital?"}, "audio": {"en": "audio/en/hospital.wav"} },
+  "bathroom":      { "text": {"en": "Where is the bathroom?"}, "audio": {"en": "audio/en/bathroom.wav"} },
+  "thankyou":      { "text": {"en": "Thank you"},              "audio": {"en": "audio/en/thankyou.wav"} },
+  "you":           { "text": {"en": "You"},                    "audio": {"en": "audio/en/you.wav"} },
+  "friend":        { "text": {"en": "Friend"},                 "audio": {"en": "audio/en/friend.wav"} },
+  "mother":        { "text": {"en": "Mother"},                 "audio": {"en": "audio/en/mother.wav"} }
+}

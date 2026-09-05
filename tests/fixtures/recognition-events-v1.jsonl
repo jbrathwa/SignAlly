@@ -1,0 +1,13 @@
+{"e":"tracking","status":"absent","hands":0,"clipped":false}
+{"e":"tracking","status":"clipped","hands":1,"clipped":true}
+{"e":"tracking","status":"hands_hidden","hands":0,"clipped":false}
+{"e":"tracking","status":"ok","hands":2,"clipped":false}
+{"e":"armed"}
+{"e":"recording","frames":14}
+{"e":"classifying"}
+{"e":"recognised","gloss":"hello","conf":0.92,"top3":[["hello",0.92],["howareyou",0.04],["friend",0.01]],"n_frames":31,"usable_frames":30,"encode_ms":11.6,"forward_ms":21.6,"take_usable":true}
+{"e":"unclear","conf":0.35,"top3":[["religion",0.35],["truck",0.27],["bedroom",0.13]]}
+{"e":"unclear","conf":0.0,"top3":[],"reason":"too_short","n_frames":5}
+{"e":"fault","code":"camera_lost","msg":"camera 2 stopped returning frames"}
+{"e":"fault","code":"camera_open_failed","msg":"camera 2 opens but returns no frames"}
+{"e":"fault","code":"model_error","msg":"classify() raised RuntimeError"}
