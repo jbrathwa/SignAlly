@@ -43,18 +43,19 @@ class Orchestrator:
     def _apply(self, outcome) -> None:
         """Caller holds the lock. Publish, then play.
 
-        Handles both `core.Outcome` (carries `audio`) and `core.UplinkOutcome`
-        (does not) — `on_uplink` applies a UplinkOutcome from handle_uplink and
-        may then apply an Outcome from apply_capture_result, so this must
-        accept either shape without assuming the `audio` field exists.
+        `core.handle_uplink` returns a `UplinkOutcome`, which has no `audio`
+        field (only `core.Outcome` does). Dispatch on type explicitly rather
+        than `getattr(outcome, "audio", ())` — a future rename or typo of
+        `Outcome.audio` must raise, not silently stop playing audio.
         """
         self._state = outcome.state
         for level, message in outcome.logs:
             log.log(_LEVELS.get(level, logging.INFO), "%s", message)
         for message in outcome.messages:
             self._hub.publish(message)
-        for gloss in getattr(outcome, "audio", ()):
-            self._player.play(gloss, muted=outcome.state.muted)
+        if isinstance(outcome, core.Outcome):
+            for gloss in outcome.audio:
+                self._player.play(gloss, muted=outcome.state.muted)
 
     def on_recognition_event(self, event: dict) -> None:
         with self._lock:

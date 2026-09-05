@@ -57,6 +57,9 @@ class _Handler(BaseHTTPRequestHandler):
         except ValueError:
             self.send_error(400, "bad Content-Length")
             return
+        if length < 0:
+            self.send_error(400, "bad Content-Length")
+            return
         if length > MAX_BODY:
             self.send_error(413, "body too large")
             return

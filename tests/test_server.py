@@ -127,6 +127,23 @@ def test_an_oversized_body_returns_413(running):
     excinfo.value.close()
 
 
+def test_a_negative_content_length_returns_400(running):
+    """A negative length passes the `length > MAX_BODY` guard, and
+
+    `rfile.read(-1)` reads to EOF — on a keep-alive connection the client
+    never closes, that blocks the handler thread forever. Reject it outright.
+    """
+    base, *_ = running
+    request = urllib.request.Request(
+        f"{base}/uplink", data=b'{"t":"ack","seq":1}', method="POST",
+        headers={"Content-Type": "application/json", "Content-Length": "-1"},
+    )
+    with pytest.raises(urllib.error.HTTPError) as excinfo:
+        urllib.request.urlopen(request, timeout=3)
+    assert excinfo.value.code == 400
+    excinfo.value.close()
+
+
 def test_events_streams_hello_first(running):
     base, app, _, _ = running
     with urllib.request.urlopen(f"{base}/events", timeout=3) as stream:
