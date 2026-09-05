@@ -40,6 +40,10 @@ WAIT_SECONDS=45
 # MediaPipe writes a wall of noise to stderr on every start.
 NOISE='^W0|absl|xnnpack|cpuinfo|feedback|landmark_projection|Fiber init|TensorFlow Lite'
 
+# hostname -I lists the docker bridge addresses first, so it hands out a URL
+# no browser off this board can reach. Ask the routing table instead.
+lan_ip() { ip route get 1.1.1.1 2>/dev/null | awk '{print $7; exit}'; }
+
 bold()  { printf '\033[1m%s\033[0m\n' "$*"; }
 info()  { printf '  %s\n' "$*"; }
 ok()    { printf '  \033[32mok\033[0m    %s\n' "$*"; }
@@ -122,7 +126,7 @@ start_console() {
   info "(first run downloads a Python into the container — this takes minutes,"
   info " and looks like a hang. Later starts are quick.)"
   if arduino-app-cli app start "$CONSOLE_APP" > "$LOG_DIR/console.log" 2>&1; then
-    ok "console app started — http://$(hostname -I 2>/dev/null | awk '{print $1}'):7000"
+    ok "console app started — http://$(lan_ip):7000"
   else
     fail "console app failed to start"
     tail -8 "$LOG_DIR/console.log" 2>/dev/null | sed 's/^/      /'
@@ -215,9 +219,7 @@ print('  '.join(f'{k}={h.get(k)}' for k in sys.argv[1:]))
   esac
 
   echo
-  local ip
-  ip=$(hostname -I 2>/dev/null | awk '{print $1}')
-  info "console UI:  http://${ip:-<board-ip>}:7000"
+  info "console UI:  http://$(lan_ip):7000"
   info "The physical CrowPanel is NOT part of this stack. The console app stands"
   info "in for it; the MCU sketch is untouched and its Bridge path is disabled."
 }
