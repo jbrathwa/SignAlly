@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SignAlly Console — panel stand-in</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>SignAlly Console</h1>
+      <p class="sub">Stands in for the CrowPanel while it is off the bench. Shows what the screen would display, acks every message the way the firmware does, and sends real button presses upstream.</p>
+    </header>
+
+    <!--
+      No transport selector here, unlike the UART test harness this grew from.
+      There is exactly one path: this page <-> App Lab <-> the orchestrator's
+      HTTP API on the Linux host. No Bridge, no UART, because the MCU sketch
+      still owns its own mock state machine and would be a second source of seq.
+    -->
+    <section class="transport">
+      <span class="link-label">Orchestrator</span>
+      <span id="conn-badge" class="badge badge-off">disconnected</span>
+      <span id="host-text" class="host-text">looking for the host&hellip;</span>
+      <label class="ack-toggle">
+        <input type="checkbox" id="chk-autoack" checked>
+        auto-ack
+      </label>
+      <button id="btn-hello" class="btn btn-ghost">Send hello</button>
+    </section>
+
+    <!-- What the panel would be showing right now. -->
+    <section class="panel-sim" id="panel-sim" data-screen="boot">
+      <span class="panel-eyebrow" id="panel-eyebrow">SCREEN</span>
+      <p class="panel-headline" id="panel-headline">Waiting for the orchestrator</p>
+      <p class="panel-detail" id="panel-detail">Nothing received yet.</p>
+    </section>
+
+    <div class="button-group">
+      <button id="btn-start" class="btn btn-primary">START</button>
+      <button id="btn-stop" class="btn btn-danger">STOP</button>
+      <button id="btn-mute" class="btn btn-ghost">MUTE: off</button>
+    </div>
+
+    <section class="status-box">
+      <h3>Expected flow</h3>
+      <div class="expected">
+        <span class="step" data-state="idle">IDLE</span>
+        <span class="arrow">&rarr;</span>
+        <span class="step" data-state="listening">LISTENING</span>
+        <span class="arrow">&rarr;</span>
+        <span class="step" data-state="analyzing">ANALYZING</span>
+        <span class="arrow">&rarr;</span>
+        <span class="step" data-state="result">RESULT</span>
+      </div>
+
+      <h3 class="log-title">
+        Wire log
+        <span class="log-legend">
+          <span class="tag tag-down">down</span> orchestrator &rarr; panel
+          <span class="tag tag-up">up</span> panel &rarr; orchestrator
+        </span>
+        <button id="btn-clear" class="btn btn-ghost btn-small">Clear</button>
+      </h3>
+      <pre id="wire-log" class="serial-log">(nothing yet)</pre>
+    </section>
+
+    <footer>
+      <p>Every line below is the real display protocol. <code>seq</code> is minted by the orchestrator, never here &mdash; this page only echoes it back in an ack.</p>
+    </footer>
+  </div>
+
+  <script src="libs/socket.io.min.js"></script>
+  <script src="libs/arduino.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

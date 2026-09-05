@@ -1,0 +1,6 @@
+name: SignAlly Console
+icon: 🤟
+description: Stands in for the CrowPanel display. Mirrors the orchestrator's protocol stream, acks it like the real firmware, and sends button presses back.
+
+bricks:
+  - arduino:web_ui
