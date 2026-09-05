@@ -73,6 +73,7 @@ def main(argv=None) -> int:
         log.info("shutting down")
     finally:
         upstream.stop()
+        server.shutdown()  # stop the accept loop before closing the socket
         server.server_close()
         player.close()
     return 0
