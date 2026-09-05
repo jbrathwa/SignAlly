@@ -20,6 +20,8 @@ SCREEN_IDLE = "idle"
 SCREEN_LISTENING = "listening"
 SCREEN_ANALYZING = "analyzing"
 
+TRACKING_TEXT = {"clipped": "Move back", "absent": "Nobody in frame"}
+
 
 @dataclass(frozen=True)
 class DeviceState:
@@ -75,6 +77,28 @@ def _unclear(event: dict, state: DeviceState) -> Outcome:
                    logs=tuple(logs))
 
 
+def _tracking(event: dict, state: DeviceState) -> Outcome:
+    status = event.get("status")
+    if status == state.tracking_status:
+        return Outcome(state)
+
+    was_error = state.tracking_status in TRACKING_TEXT
+    new = replace(state, tracking_status=status)
+
+    if status in TRACKING_TEXT:
+        return Outcome(new, messages=({"t": "error", "text": TRACKING_TEXT[status]},),
+                       logs=(("info", f"tracking {status}"),))
+
+    # Recovery the protocol spec does not describe: `error` is a payload message
+    # and there is no "error over", so re-sending state is the only v1 way to get
+    # the panel off the error screen.
+    if was_error:
+        return Outcome(new, messages=(state_message(new),),
+                       logs=(("info", f"tracking {status}; clearing error screen"),))
+
+    return Outcome(new, logs=(("info", f"tracking {status}"),))
+
+
 def translate(event: dict, state: DeviceState, phrases: PhraseTable) -> Outcome:
     kind = event.get("e")
 
@@ -98,4 +122,26 @@ def translate(event: dict, state: DeviceState, phrases: PhraseTable) -> Outcome:
     if kind == "unclear":
         return _unclear(event, state)
 
+    if kind == "tracking":
+        return _tracking(event, state)
+
     return Outcome(state, logs=(("info", f"unhandled recognition event {kind!r}"),))
+
+
+def mark_offline(state: DeviceState) -> Outcome:
+    """Emitted once per outage, not once per check."""
+    if state.offline:
+        return Outcome(state)
+    return Outcome(
+        replace(state, offline=True),
+        messages=({"t": "error", "text": "Recognition offline"},),
+        logs=(("error", "recognition stream went quiet"),),
+    )
+
+
+def mark_online(state: DeviceState) -> Outcome:
+    if not state.offline:
+        return Outcome(state)
+    new = replace(state, offline=False)
+    return Outcome(new, messages=(state_message(new),),
+                   logs=(("info", "recognition stream back"),))
