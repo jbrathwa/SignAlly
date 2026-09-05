@@ -25,11 +25,26 @@ def test_absent_becomes_nobody_in_frame():
     assert out.messages == ({"t": "error", "text": "Nobody in frame"},)
 
 
-def test_hands_hidden_is_logged_only():
+def test_hands_hidden_emits_nothing_when_no_error_is_showing():
+    """`hands_hidden` has nothing of its own to display. It is not silent
+    unconditionally, though — see the recovery case below."""
     out = translate({"e": "tracking", "status": "hands_hidden"}, CAPTURING, TABLE)
     assert out.messages == ()
     assert out.state.tracking_status == "hands_hidden"
     assert out.logs
+
+
+def test_clipped_then_hands_hidden_clears_the_error_screen():
+    """Leaving an error status is the trigger, not arriving at `ok` (section 4).
+
+    A signer who obeys "Move back" and then rests their hands has fixed the
+    thing they were told about; leaving "Move back" up would tell them a
+    resolved problem is still current.
+    """
+    state = replace(CAPTURING, tracking_status="clipped")
+    out = translate({"e": "tracking", "status": "hands_hidden"}, state, TABLE)
+    assert out.messages == ({"t": "state", "s": "listening"},)
+    assert out.state.tracking_status == "hands_hidden"
 
 
 def test_the_same_status_twice_emits_once():
