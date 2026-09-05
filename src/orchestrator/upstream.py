@@ -60,6 +60,15 @@ class Upstream:
     def last_line_age_s(self) -> float:
         return time.monotonic() - self._last_line_at
 
+    def set_callbacks(self, on_event=None, on_offline=None, on_connect=None) -> None:
+        """Wire the mediator in after construction — the two refer to each other."""
+        if on_event is not None:
+            self._on_event = on_event
+        if on_offline is not None:
+            self._on_offline = on_offline
+        if on_connect is not None:
+            self._on_connect = on_connect
+
     def start(self) -> None:
         for target, name in ((self._read_loop, "upstream"), (self._watchdog, "watchdog")):
             thread = threading.Thread(target=target, name=name, daemon=True)
