@@ -6,10 +6,13 @@ the only component that speaks the display JSON protocol v1.
 ## Run it
 
 Standard library only — no venv needed, including on the board's Python 3.13.
+The package is not installed, so `src` has to be on the path, and `--phrases`
+and `--audio-dir` default to paths relative to the working directory — run
+these from the repo root:
 
 ```bash
-python -m orchestrator                       # 0.0.0.0:9977, upstream 127.0.0.1:9978
-python -m orchestrator --log-level DEBUG
+PYTHONPATH=src python3 -m orchestrator       # 0.0.0.0:9977, upstream 127.0.0.1:9978
+PYTHONPATH=src python3 -m orchestrator --log-level DEBUG
 ```
 
 ## The API
@@ -47,3 +50,11 @@ fixtures in `tests/fixtures/` and an in-process fake recognition server.
 - **`tracking: ok` re-emitting state** is an orchestrator-side recovery the
   protocol spec does not describe. It uses only v1 messages, but the panel has
   never been tested against it.
+- **It is unauthenticated and binds `0.0.0.0`.** Anyone on the same LAN can
+  `POST /uplink` to start or stop the camera and mute the device, and can `GET
+  /events` to read a live transcript of what a Deaf user is signing. The bind
+  is required — the App Lab container reaches it across the docker gateway —
+  and for a hackathon device on a trusted network this is an accepted risk, not
+  an oversight. Off that network, bind the docker bridge address instead of
+  `0.0.0.0`, or put a shared-secret header on `/uplink`; the header needs a
+  matching change in the courier, which does not exist yet.
