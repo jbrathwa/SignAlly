@@ -10,16 +10,17 @@ Two things here are load-bearing and easy to get wrong:
    capture flag is its own and does not survive its restart, so the caller
    re-asserts capture there. It fires once per genuine outage, so it is also
    the one place a synchronous POST on the reader thread is affordable.
-3. The read loop wakes on `select`, never on a socket timeout. A socket read
-   timeout poisons the file object permanently the first time it fires — see
-   `_pump` — which is how a healthy stream becomes a reconnect storm.
+3. Nothing here reads with a socket timeout. The first one to fire poisons the
+   file object permanently — see `_pump` — which is how a healthy stream that
+   merely went quiet becomes a reconnect storm. `stop()` interrupts the read by
+   shutting the socket down instead.
 """
 
 from __future__ import annotations
 
 import json
 import logging
-import select
+import socket
 import threading
 import time
 import urllib.error
@@ -33,8 +34,40 @@ OFFLINE_AFTER_S = 5.0
 CAPTURE_TIMEOUT_S = 3.0
 CONNECT_TIMEOUT_S = 5.0
 WATCHDOG_TICK_S = 0.5
-READ_TICK_S = 0.5
-READ_CHUNK = 65536
+
+
+def _socket_of(stream):
+    """The socket under a urllib HTTP response, or None if it cannot be found.
+
+    urllib exposes no handle on it, and two things need one: the connect
+    timeout has to be cleared once the connection is up, and `stop()` has to
+    interrupt a blocked read. The layout — `HTTPResponse.fp` is a
+    `BufferedReader` over a `socket.SocketIO` — is the same on 3.11 through
+    3.14. If it ever moves, both callers degrade rather than break.
+    """
+    try:
+        return stream.fp.raw._sock
+    except AttributeError:
+        log.warning("cannot reach the socket under the upstream response")
+        return None
+
+
+def _interrupt(target) -> None:
+    """Unblock a reader parked in recv().
+
+    shutdown() is what makes the blocked read return; closing the file object
+    is not guaranteed to wake a reader already inside recv(), which is why the
+    socket is worth reaching for at all.
+    """
+    if target is None:
+        return
+    try:
+        if isinstance(target, socket.socket):
+            target.shutdown(socket.SHUT_RDWR)
+        else:
+            target.close()
+    except OSError:
+        pass
 
 
 class Upstream:
@@ -58,6 +91,8 @@ class Upstream:
         self._last_line_at = time.monotonic()
         self._reported_offline = False
         self._threads: list[threading.Thread] = []
+        self._live_lock = threading.Lock()
+        self._live = None  # the socket the reader is parked on, for stop()
 
     @property
     def connected(self) -> bool:
@@ -84,6 +119,8 @@ class Upstream:
 
     def stop(self) -> None:
         self._stopping.set()
+        with self._live_lock:
+            _interrupt(self._live)
         for thread in self._threads:
             thread.join(timeout=2.0)
         self._threads.clear()
@@ -123,27 +160,32 @@ class Upstream:
         delay = self._backoff_start
         while not self._stopping.is_set():
             try:
-                # The timeout here is a *connect* bound. It must never be used
-                # as a read tick: CPython's socket.SocketIO.readinto latches
-                # _timeout_occurred on the first read timeout, after which every
-                # further read on that file object raises
-                # OSError("cannot read from timed out object") forever. A
-                # per-read timeout therefore turns a quiet-but-healthy stream
-                # into a reconnect storm — ~40 reconnects a minute against the
-                # real 2 s heartbeat, each one re-POSTing /capture and resetting
-                # the liveness timer so the offline watchdog can never fire.
-                # _pump uses select() as the wake-up mechanism instead.
+                # This timeout is a *connect* bound and `_adopt` clears it the
+                # moment the connection is up. It must never survive into the
+                # reads: CPython's socket.SocketIO.readinto latches
+                # _timeout_occurred on the first read timeout, after which
+                # every later read on that file object raises
+                # OSError("cannot read from timed out object") for good. Used
+                # as a wake-up tick it produced ~40 reconnects a minute against
+                # the real 2 s heartbeat, each one re-POSTing /capture and
+                # touching the liveness timer so the offline watchdog could
+                # never fire.
                 with urllib.request.urlopen(
                     f"{self._base_url}/results", timeout=CONNECT_TIMEOUT_S
                 ) as stream:
-                    self._connected = True
-                    self._touch()
-                    delay = self._backoff_start
                     try:
-                        self._on_connect()
-                    except Exception:  # noqa: BLE001
-                        log.exception("on_connect callback raised")
-                    self._pump(stream)
+                        self._adopt(stream)
+                        self._connected = True
+                        self._touch()
+                        delay = self._backoff_start
+                        try:
+                            self._on_connect()
+                        except Exception:  # noqa: BLE001
+                            log.exception("on_connect callback raised")
+                        self._pump(stream)
+                    finally:
+                        with self._live_lock:
+                            self._live = None
             except Exception as exc:  # noqa: BLE001 - a dead upstream is expected
                 if isinstance(exc, urllib.error.HTTPError):
                     exc.close()  # unclosed error bodies (e.g. a 503 refusal) leak a socket
@@ -153,40 +195,40 @@ class Upstream:
                 return
             delay = min(delay * 2, self._backoff_max)
 
-    def _pump(self, stream) -> None:
-        """Read lines off a live stream until it ends or stop() is called.
+    def _adopt(self, stream) -> None:
+        """Take the live socket off its connect timeout and hand it to stop().
 
-        select() is what wakes this thread every READ_TICK_S to notice
-        _stopping, so the socket itself is never asked to time out and an idle
-        signer's minutes of silence cost nothing. stop() stays bounded because
-        the wait happens in select, not in the read.
-
-        read1() rather than readline() is load-bearing for that: it takes at
-        most one recv() and drains the response's buffer, so "select says
-        nothing is readable" really does mean nothing is pending. readline()
-        can leave a second complete line sitting in the buffered reader where
-        select cannot see it, and it would sit there unread until more bytes
-        happened to arrive.
-
-        Only reading a socket select has already called readable also means the
-        connect timeout inherited from urlopen cannot fire here, so it cannot
-        latch either.
+        The lock closes the race the earlier bounded-read fix was reaching for:
+        either stop() sees this socket and interrupts it, or this sees that
+        stop() has already run and interrupts it here. Without that, a stop()
+        landing between urlopen and the first read would leave the reader
+        blocked on a socket nobody holds a reference to.
         """
-        buffer = b""
+        sock = _socket_of(stream)
+        with self._live_lock:
+            self._live = sock if sock is not None else stream
+            if sock is not None:
+                sock.settimeout(None)
+            if self._stopping.is_set():
+                _interrupt(self._live)
+
+    def _pump(self, stream) -> None:
+        """Read lines until the server hangs up or stop() interrupts the socket.
+
+        A plain blocking readline() is the whole mechanism, and the absence of
+        a read timeout is the point: an idle signer's minutes of silence cost
+        nothing, and a `: ping` two seconds late is not a disconnect.
+
+        select() was tried here and is wrong. `HTTPResponse` reads its headers
+        through a BufferedReader, which routinely pulls the first body bytes
+        into a Python-level buffer in the same recv(); select() reports the
+        socket as not readable and those already-delivered lines sit unread.
+        """
         while not self._stopping.is_set():
-            try:
-                ready, _, _ = select.select([stream.fileno()], [], [], READ_TICK_S)
-            except (OSError, ValueError):
-                return  # the stream was closed underneath us
-            if not ready:
-                continue
-            chunk = stream.read1(READ_CHUNK)
-            if not chunk:
-                return  # server closed the connection
-            buffer += chunk
-            while b"\n" in buffer:
-                line, buffer = buffer.split(b"\n", 1)
-                self._handle_line(line)
+            raw = stream.readline()
+            if not raw:
+                return  # server closed the connection, or stop() shut it down
+            self._handle_line(raw)
 
     def _handle_line(self, raw: bytes) -> None:
         self._touch()  # any line, comments included

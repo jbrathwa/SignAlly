@@ -1,6 +1,7 @@
 import gc
 import json
 import logging
+import socket
 import threading
 import time
 import warnings
@@ -85,6 +86,51 @@ def fake():
     server.server_close()
 
 
+@pytest.fixture
+def coalescing():
+    """A recognition that answers with its headers and first event in one write.
+
+    Routine in practice — a heartbeat due at connect time lands in the same TCP
+    segment as the headers — and the reason _pump may not gate its reads on a
+    readiness check. HTTPResponse parses its headers through a BufferedReader,
+    which pulls those body bytes into a Python-level buffer in the same recv();
+    select() then reports the socket as not readable and the event sits unread
+    until something else happens to arrive.
+    """
+    listener = socket.socket()
+    listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(1)
+    stopping = threading.Event()
+
+    def serve():
+        listener.settimeout(0.2)
+        while not stopping.is_set():
+            try:
+                conn, _ = listener.accept()
+            except TimeoutError:
+                continue
+            except OSError:
+                return
+            with conn:
+                try:
+                    conn.sendall(
+                        b"HTTP/1.0 200 OK\r\n"
+                        b"Content-Type: text/event-stream\r\n\r\n"
+                        b'data: {"e":"armed"}\n\n'
+                    )
+                    stopping.wait(5.0)  # then silence, as an idle signer would
+                except OSError:
+                    return
+
+    thread = threading.Thread(target=serve, daemon=True)
+    thread.start()
+    yield f"http://127.0.0.1:{listener.getsockname()[1]}"
+    stopping.set()
+    thread.join(timeout=2.0)
+    listener.close()
+
+
 def wait_for(predicate, timeout=5.0):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -109,9 +155,9 @@ def test_data_lines_reach_on_event(fake):
 def test_a_comment_line_resets_the_liveness_timer(fake):
     """An idle signer produces no events for minutes; : ping is all there is.
 
-    The gap between pings must exceed READ_TICK_S (0.5 s), or the read loop
-    never actually waits and the test proves nothing about what happens when
-    it does — which is how the reconnect storm this file now guards against
+    The gap between pings has to be long enough that the read actually waits.
+    At the original 0.15 s it never did, so the test never exercised the 2 s
+    cadence its own docstring named — which is how the reconnect storm below
     survived a green suite.
     """
     offline = threading.Event()
@@ -134,9 +180,9 @@ def test_the_real_two_second_heartbeat_neither_reconnects_nor_loses_events(fake)
     first time it fires — CPython latches SocketIO._timeout_occurred and every
     later read raises OSError("cannot read from timed out object") — so the
     stream tore itself down roughly every half second. Measured against this
-    cadence that was 6 connections in 8 s, every event in a gap longer than
-    the tick dropped, and an offline watchdog that could never fire because
-    each reconnect touched the liveness timer.
+    cadence that was 6 connections in 8 s, every event arriving after a quiet
+    gap dropped, and an offline watchdog that could never fire because each
+    reconnect touched the liveness timer.
 
     All three failures are one assertion set: one connection across several
     heartbeats, and an event three seconds after the last line still arriving.
@@ -182,6 +228,18 @@ def test_a_malformed_data_line_is_skipped_not_fatal(fake):
         fake.lines.append(b"data: {not json\n\n")
         fake.lines.append(b'data: {"e":"armed"}\n\n')
         assert wait_for(lambda: events == [{"e": "armed"}])
+    finally:
+        up.stop()
+
+
+def test_an_event_arriving_with_the_response_headers_is_not_stranded(coalescing):
+    """It has already been delivered; nothing more will arrive to shake it loose."""
+    events = []
+    up = Upstream(coalescing, on_event=events.append, on_offline=lambda: None,
+                  on_connect=lambda: None)
+    up.start()
+    try:
+        assert wait_for(lambda: events == [{"e": "armed"}], timeout=3.0)
     finally:
         up.stop()
 
@@ -276,13 +334,14 @@ def test_a_raising_on_event_with_a_non_dict_payload_does_not_tear_down_the_strea
 
 
 def test_stop_returns_promptly_even_mid_read(fake):
-    """Regression guard for the bounded wait in _pump.
+    """Regression guard for stop() interrupting the live socket.
 
-    With no data pending, stop() must return within a bound well short of the
-    thread.join(timeout=2.0) inside it. The reader waits in select() for
-    READ_TICK_S, not in the read itself, so it notices _stopping on the next
-    tick; a regression to an unguarded blocking read would leave it unable to
-    notice until data arrives, making this take the full join timeout instead.
+    With the reader blocked in a read and no data pending, stop() must return
+    within a bound well short of the thread.join(timeout=2.0) inside it. It
+    manages that by shutting the socket down under the read, which is the only
+    wake-up mechanism left now that no read carries a timeout; drop it and the
+    reader cannot notice _stopping until data arrives, making this take the
+    full join timeout instead.
     """
     up = Upstream(fake.url, on_event=lambda e: None, on_offline=lambda: None,
                   on_connect=lambda: None)
