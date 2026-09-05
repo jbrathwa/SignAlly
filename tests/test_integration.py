@@ -61,13 +61,23 @@ def post(base, payload: bytes):
         return response.status
 
 
+def subscriber_count(base):
+    health = json.loads(urllib.request.urlopen(f"{base}/health", timeout=3).read())
+    return health["subscribers"]
+
+
 def test_a_whole_session_end_to_end(rig):
     """Recognition fixture in, protocol JSON out, audio played."""
     base, fake, app, hub, played = rig
     reader = []
     thread = threading.Thread(target=lambda: reader.extend(collect(base, 5)), daemon=True)
     thread.start()
-    time.sleep(0.3)
+    # Wait for the SSE handler to actually register with the hub, rather than
+    # hoping a fixed sleep outlasts it — a slow/contended box could otherwise
+    # have `start` publish `listening` before anyone is subscribed, and the
+    # exact 5-message assertion below would fail or hang until thread.join's
+    # timeout.
+    assert wait_for(lambda: subscriber_count(base) >= 1, timeout=5.0)
 
     post(base, b'{"t":"button","b":"start"}')
     for event in ({"e": "armed"}, {"e": "recording", "frames": 3}, {"e": "classifying"},
