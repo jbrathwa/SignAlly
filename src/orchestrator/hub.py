@@ -68,7 +68,10 @@ class EventHub:
         with self._lock:
             if len(self._queues) >= self._max_subscribers:
                 return None
-            q: queue.Queue = queue.Queue(maxsize=self._maxsize + 1)
+            # Reserve slots for seed messages (hello + retained state if present)
+            # so maxsize keeps meaning real-message capacity for the caller.
+            seeds = 1 + (1 if self._retained is not None else 0)
+            q: queue.Queue = queue.Queue(maxsize=self._maxsize + seeds)
             self._put(q, {"t": "hello", "v": 1})
             if self._retained is not None:
                 self._put(q, self._retained)

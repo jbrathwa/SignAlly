@@ -92,3 +92,25 @@ def test_seq_is_contiguous_across_a_run():
     for n in range(50):
         hub.publish({"t": "unclear", "conf": 0.1})
     assert [m["seq"] for m in drain(q)] == list(range(1, 51))
+
+
+def test_state_retained_then_subscribe_with_tight_maxsize_gives_correct_capacity():
+    """State-retained case: subscriber seeded with hello+state still gets maxsize
+    real slots. maxsize reservation must account for both seed messages."""
+    hub = EventHub(maxsize=2)
+    hub.publish({"t": "state", "s": "idle"})
+    q = hub.subscribe()
+    # Queue now contains: hello, state (2 items, queue capacity = maxsize + 2 = 4)
+    # Publish 2 real messages; both should fit without drops
+    hub.publish({"t": "unclear", "conf": 0.1})
+    hub.publish({"t": "unclear", "conf": 0.2})
+    # Queue now has: hello, state, msg0, msg1 (4/4 full)
+    # 3rd real message triggers a drop (hello gets dropped)
+    hub.publish({"t": "unclear", "conf": 0.3})
+    # Total dropped should be 1 (hello was evicted)
+    assert hub.dropped == 1
+    # Verify the queue contains state, msg0, msg1, msg3 (hello was replaced)
+    msgs = drain(q)
+    assert len(msgs) == 4
+    assert msgs[0]["t"] == "state"
+    assert [m["conf"] for m in msgs[1:]] == [0.1, 0.2, 0.3]
