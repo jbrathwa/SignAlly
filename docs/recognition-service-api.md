@@ -244,7 +244,7 @@ answerable, because a dead process on a headless board tells you nothing.
 
 ---
 
-## 5. The three routes
+## 5. The three routes, and the debug view
 
 ### `GET /results` — the stream
 
@@ -290,7 +290,8 @@ curl -s -X POST localhost:9978/capture -d '{"active":true}'
  "autotake": {"pre_roll": 4, "rest_to_arm": 2, "raised_to_start": 2,
               "rest_to_close": 3, "max_frames": 135},
  "min_frames": 8, "threshold": 0.6, "disk_free_mb": 2140,
- "subscribers": 1, "dropped_events": 0}
+ "subscribers": 1, "dropped_events": 0,
+ "islkit_version": "0.2.0", "encoder_fingerprint": "6a85d7da43fc785d"}
 ```
 
 | Field | Meaning |
@@ -305,6 +306,27 @@ curl -s -X POST localhost:9978/capture -d '{"active":true}'
 | `subscribers` | Open `/results` connections, of a maximum four |
 | `dropped_events` | Events discarded because a subscriber was too slow |
 | `disk_free_mb` | Free space where takes are written |
+| `islkit_version` | The installed `islkit` package version serving this checkpoint |
+| `encoder_fingerprint` | Behavioural hash of what the feature encoder currently does. Recorded in the checkpoint at training time and recomputed at load; a mismatch means the classifier is being served by an encoder it was not fitted on — a silent-and-confident failure mode this project has hit before |
+
+### `GET /view` — the annotated debug view, and why it isn't loopback
+
+A fourth surface, separate from the three API routes above. The service's own flag default is off
+(`--view-port 0`), but **`scripts/signally-start.sh` turns it on by default** (`VIEW_PORT=9979`) —
+so on the board, unless something has been changed, this is running right now. When enabled it
+serves an MJPEG stream of the camera with the extracted landmarks drawn on it — `/`, `/view` and
+`/index.html` return an HTML page embedding it, `/view.mjpg` is the raw stream — so a tester can see
+what the model sees instead of guessing from a gloss alone.
+
+> ⚠️ **This is the one surface that is not loopback-only, and that is deliberate but worth knowing
+> before you rely on the default.** `--port` (the API: `/results`, `/capture`, `/health`) binds
+> `127.0.0.1` and nothing off the machine can reach it. `--view-port` binds `--view-host`, which
+> **defaults to `0.0.0.0`** — on purpose, so a laptop on the same network can watch the camera while
+> the service runs on the board. The consequence is exactly what it sounds like: on the board, right
+> now, at the script's defaults, **anyone who can reach the device on the network can watch the
+> camera** through `/view`. On a shared or untrusted network, set `VIEW_PORT=0` before starting (or
+> pass `--view-port 0` directly) to turn it off entirely, or point `--view-host` at a narrower
+> address.
 
 ### Why `autotake` changes between machines
 
@@ -346,6 +368,8 @@ guessing.
 | `--session` | timestamp | Session id in the take path |
 | `--start-active` | off | Capture from boot instead of waiting for the orchestrator |
 | `--model-complexity` | `1` | Holistic complexity: 0, 1 or 2. Drop to `0` if the board is too slow |
+| `--view-port` | `0` (off) | Serves the annotated debug view (section 5) on this port. Separate from `--port` on purpose: the API stays on loopback, this does not |
+| `--view-host` | `0.0.0.0` | Bind address for `--view-port`. Anyone who can reach it can watch the camera — see section 5's warning |
 
 > **Every gesture is recorded.** Each take is written as raw landmarks plus a sidecar under
 > `--unlabelled-root`, in the layout `build_dataset` already globs. Board-recorded takes join the S7
