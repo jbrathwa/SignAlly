@@ -16,6 +16,9 @@ Two projects, deliberately separate: they cannot share a Python.
 cd orchestrator && PYTHONPATH=src python3 -m orchestrator
 ```
 
+`recognition/`'s own install, run and consume guide lives at
+[`docs/recognition-service-api.md`](docs/recognition-service-api.md).
+
 ## Run it
 
 Standard library only — no venv needed, including on the board's Python 3.13.

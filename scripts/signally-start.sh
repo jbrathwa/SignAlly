@@ -5,7 +5,7 @@
 # Three processes, and the point of this script is that "are all three running?"
 # becomes something you verify rather than assume:
 #
-#   1. recognition   host, ~/recognition-venv (Python 3.12), holds the camera
+#   1. recognition   host, SignAlly/recognition/.venv (Python 3.12), holds the camera
 #   2. orchestrator  host, system Python 3.13, no venv (it is stdlib-only)
 #   3. console       App Lab container, stands in for the display panel
 #
@@ -22,13 +22,18 @@
 
 set -uo pipefail
 
-RECOGNITION_DIR="${RECOGNITION_DIR:-$HOME/islkit}"
-RECOGNITION_PY="${RECOGNITION_PY:-$HOME/recognition-venv/bin/python}"
+RECOGNITION_DIR="${RECOGNITION_DIR:-$HOME/SignAlly/recognition}"
+RECOGNITION_PY="${RECOGNITION_PY:-$HOME/SignAlly/recognition/.venv/bin/python}"
 SIGNALLY_DIR="${SIGNALLY_DIR:-$HOME/SignAlly}"
 ORCHESTRATOR_DIR="${ORCHESTRATOR_DIR:-$HOME/SignAlly/orchestrator}"
 PHRASES="${PHRASES:-$SIGNALLY_DIR/phrases.json}"
 CONSOLE_APP="${CONSOLE_APP:-$HOME/SignAlly/applab/signally-console}"
 LOG_DIR="${LOG_DIR:-$HOME/logs}"
+
+# Outside both repos on purpose. Takes are training data for the bench, and
+# neither the production repo nor the bench should silently accumulate them —
+# copying them to the bench stays an explicit step.
+TAKES_DIR="${TAKES_DIR:-$HOME/takes}"
 
 # The camera index is NOT stable. Across a reboot on 2026-09-06 the working
 # node moved from video1 to video2, and the Venus hardware codecs took the
@@ -104,7 +109,8 @@ console_state() {
 preflight() {
   local bad=0
   [ -x "$RECOGNITION_PY" ]  || { fail "no recognition venv at $RECOGNITION_PY"; bad=1; }
-  [ -d "$RECOGNITION_DIR" ] || { fail "no recognition repo at $RECOGNITION_DIR"; bad=1; }
+  [ -d "$RECOGNITION_DIR/src/recognition" ] || { fail "no recognition source in $RECOGNITION_DIR"; bad=1; }
+  mkdir -p "$TAKES_DIR" || { fail "cannot create takes dir $TAKES_DIR"; bad=1; }
   [ -f "$PHRASES" ] || { fail "no phrases.json at $PHRASES"; bad=1; }
   [ -d "$ORCHESTRATOR_DIR/src/orchestrator" ] || { fail "no orchestrator source in $ORCHESTRATOR_DIR"; bad=1; }
   if [ "$CAMERA" != "auto" ]; then
@@ -130,8 +136,9 @@ start_recognition() {
     ok "camera is /dev/video$CAMERA"
   fi
   info "starting recognition on camera $CAMERA at $RESOLUTION"
-  ( cd "$RECOGNITION_DIR" && nohup "$RECOGNITION_PY" experiments/serve.py \
+  ( cd "$RECOGNITION_DIR" && PYTHONPATH=src nohup "$RECOGNITION_PY" -m recognition \
       --camera "$CAMERA" --resolution "$RESOLUTION" --view-port "$VIEW_PORT" \
+      --unlabelled-root "$TAKES_DIR" \
       > "$LOG_DIR/recognition.log" 2>&1 & )
   if wait_for_port "$REC_PORT" "recognition"; then
     ok "recognition up on $REC_PORT"
@@ -218,7 +225,7 @@ do_stop() {
     arduino-app-cli app stop "$CONSOLE_APP" >/dev/null 2>&1 && ok "console app stopped" \
       || info "console app was not running"
   fi
-  stop_one "serve.py" "$REC_PORT" "recognition"
+  stop_one "recognition --camera" "$REC_PORT" "recognition"
   stop_one "orchestrator" "$ORC_PORT" "orchestrator"
 }
 
