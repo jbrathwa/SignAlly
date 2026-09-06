@@ -10,7 +10,7 @@ from orchestrator.core import (
 )
 from orchestrator.phrases import PhraseTable
 
-TABLE = PhraseTable.load(Path(__file__).resolve().parents[1] / "phrases.json")
+TABLE = PhraseTable.load(Path(__file__).resolve().parents[2] / "phrases.json")
 CAPTURING = DeviceState(screen=SCREEN_LISTENING, capture_active=True)
 
 

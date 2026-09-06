@@ -16,8 +16,8 @@ from orchestrator.upstream import Upstream
 
 from .test_upstream import FakeRecognition, wait_for
 
-REPO = Path(__file__).resolve().parents[1]
-FIXTURES = Path(__file__).parent / "fixtures"
+REPO = Path(__file__).resolve().parents[2]
+RECOGNITION_FIXTURES = REPO / "recognition" / "tests" / "fixtures"
 
 
 @pytest.fixture
@@ -194,7 +194,7 @@ def test_the_whole_recognition_fixture_replays_to_the_expected_message_sequence(
     try:
         post(base, b'{"t":"button","b":"start"}')  # state:listening, seq 1
         drain(subscriber)
-        for line in (FIXTURES / "recognition-events-v1.jsonl").read_text().splitlines():
+        for line in (RECOGNITION_FIXTURES / "recognition-events-v1.jsonl").read_text().splitlines():
             app.on_recognition_event(json.loads(line))
         assert drain(subscriber) == [
             {"t": "error", "seq": 2, "text": "Nobody in frame"},

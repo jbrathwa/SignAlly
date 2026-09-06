@@ -3,7 +3,7 @@ from pathlib import Path
 from orchestrator.core import SCREEN_ANALYZING, DeviceState, translate
 from orchestrator.phrases import PhraseTable
 
-TABLE = PhraseTable.load(Path(__file__).resolve().parents[1] / "phrases.json")
+TABLE = PhraseTable.load(Path(__file__).resolve().parents[2] / "phrases.json")
 ANALYZING = DeviceState(screen=SCREEN_ANALYZING, capture_active=True)
 
 RECOGNISED = {

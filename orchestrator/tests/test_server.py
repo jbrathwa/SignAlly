@@ -12,7 +12,7 @@ from orchestrator.hub import EventHub
 from orchestrator.phrases import PhraseTable
 from orchestrator.server import make_server
 
-REPO = Path(__file__).resolve().parents[1]
+REPO = Path(__file__).resolve().parents[2]
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
