@@ -33,6 +33,12 @@ LOG_DIR="${LOG_DIR:-$HOME/logs}"
 CAMERA="${CAMERA:-1}"
 RESOLUTION="${RESOLUTION:-640x480}"
 
+# The annotated debug view, on its own port. The recognition API stays on
+# loopback — nothing off the board should be able to start the camera — but this
+# binds to 0.0.0.0 so a laptop can watch. Anyone who can reach it can see the
+# camera; set VIEW_PORT=0 to turn it off entirely.
+VIEW_PORT="${VIEW_PORT:-9979}"
+
 REC_PORT=9978
 ORC_PORT=9977
 WAIT_SECONDS=45
@@ -90,7 +96,7 @@ start_recognition() {
   fi
   info "starting recognition on camera $CAMERA at $RESOLUTION"
   ( cd "$RECOGNITION_DIR" && nohup "$RECOGNITION_PY" experiments/serve.py \
-      --camera "$CAMERA" --resolution "$RESOLUTION" \
+      --camera "$CAMERA" --resolution "$RESOLUTION" --view-port "$VIEW_PORT" \
       > "$LOG_DIR/recognition.log" 2>&1 & )
   if wait_for_port "$REC_PORT" "recognition"; then
     ok "recognition up on $REC_PORT"
@@ -220,6 +226,13 @@ print('  '.join(f'{k}={h.get(k)}' for k in sys.argv[1:]))
 
   echo
   info "console UI:  http://$(lan_ip):7000"
+  if [ "$VIEW_PORT" != "0" ]; then
+    if port_open "$VIEW_PORT"; then
+      info "camera view: http://$(lan_ip):$VIEW_PORT/view   (streams only while open)"
+    else
+      warn "camera view: not listening on $VIEW_PORT"
+    fi
+  fi
   info "The physical CrowPanel is NOT part of this stack. The console app stands"
   info "in for it; the MCU sketch is untouched and its Bridge path is disabled."
 }
