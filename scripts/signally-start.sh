@@ -28,9 +28,12 @@ ORCHESTRATOR_DIR="${ORCHESTRATOR_DIR:-$HOME/SignAlly}"
 CONSOLE_APP="${CONSOLE_APP:-$HOME/SignAlly/applab/signally-console}"
 LOG_DIR="${LOG_DIR:-$HOME/logs}"
 
-# /dev/video1, not video2. The attached camera is a Sony UVC device that
-# enumerates video1..video4; only video1 delivers frames. Override with CAMERA=n.
-CAMERA="${CAMERA:-1}"
+# The camera index is NOT stable. Across a reboot on 2026-09-06 the working
+# node moved from video1 to video2, and the Venus hardware codecs took the
+# indices the camera had. Opening a codec looks like a camera that returns no
+# frames, which is a confusing way to lose an hour. So: probe, never assume.
+# Override with CAMERA=n to skip the probe.
+CAMERA="${CAMERA:-auto}"
 RESOLUTION="${RESOLUTION:-640x480}"
 
 # The annotated debug view, on its own port. The recognition API stays on
@@ -70,6 +73,25 @@ wait_for_port() {
   return 1
 }
 
+# Opening a node proves nothing - the Venus codecs open and then return no
+# frames. Only a real frame counts.
+detect_camera() {
+  "$RECOGNITION_PY" - <<'CAMPROBE' 2>/dev/null
+import cv2
+
+for idx in range(8):
+    cap = cv2.VideoCapture(idx)
+    if not cap.isOpened():
+        cap.release()
+        continue
+    ok, frame = cap.read()
+    cap.release()
+    if ok and frame is not None:
+        print(idx)
+        break
+CAMPROBE
+}
+
 console_state() {
   arduino-app-cli app list 2>/dev/null \
     | awk -v p="signally-console" '$0 ~ p { print $(NF-1) }' | head -1
@@ -83,7 +105,9 @@ preflight() {
   [ -d "$RECOGNITION_DIR" ] || { fail "no recognition repo at $RECOGNITION_DIR"; bad=1; }
   [ -f "$ORCHESTRATOR_DIR/phrases.json" ] || { fail "no phrases.json in $ORCHESTRATOR_DIR"; bad=1; }
   [ -d "$ORCHESTRATOR_DIR/src/orchestrator" ] || { fail "no orchestrator source in $ORCHESTRATOR_DIR"; bad=1; }
-  [ -e "/dev/video$CAMERA" ] || { fail "/dev/video$CAMERA does not exist"; bad=1; }
+  if [ "$CAMERA" != "auto" ]; then
+    [ -e "/dev/video$CAMERA" ] || { fail "/dev/video$CAMERA does not exist"; bad=1; }
+  fi
   command -v arduino-app-cli >/dev/null || warn "arduino-app-cli missing — console cannot start"
   return $bad
 }
@@ -93,6 +117,15 @@ start_recognition() {
     warn "recognition already listening on $REC_PORT — leaving it alone"
     warn "(only one process can hold the camera; starting a second gives you a confusing fault)"
     return 0
+  fi
+  if [ "$CAMERA" = "auto" ]; then
+    info "probing for a camera node that actually delivers frames"
+    CAMERA=$(detect_camera)
+    if [ -z "$CAMERA" ]; then
+      fail "no video node delivered a frame - is the camera plugged in?"
+      return 1
+    fi
+    ok "camera is /dev/video$CAMERA"
   fi
   info "starting recognition on camera $CAMERA at $RESOLUTION"
   ( cd "$RECOGNITION_DIR" && nohup "$RECOGNITION_PY" experiments/serve.py \
