@@ -14,6 +14,15 @@ import logging
 import queue
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from importlib.metadata import PackageNotFoundError, version
+
+from islkit.features import encoder_fingerprint
+
+try:
+    _ISLKIT_VERSION = version("islkit")
+except PackageNotFoundError:  # pragma: no cover - only when running from a source tree
+    _ISLKIT_VERSION = "unknown"
+_ENCODER_FINGERPRINT = encoder_fingerprint()
 
 MAX_SUBSCRIBERS = 4
 QUEUE_MAXSIZE = 256
@@ -148,6 +157,8 @@ class _Handler(BaseHTTPRequestHandler):
                 **payload,
                 "subscribers": self.server.hub.subscribers,
                 "dropped_events": self.server.hub.dropped_events,
+                "islkit_version": _ISLKIT_VERSION,
+                "encoder_fingerprint": _ENCODER_FINGERPRINT,
             }
             self._json(200, payload)
         else:

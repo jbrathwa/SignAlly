@@ -251,6 +251,16 @@ def test_health_survives_a_pipeline_that_raises(running_server):
     assert excinfo.value.code == 500
 
 
+def test_health_reports_which_encoder_is_running(running_server):
+    """Answering "what is actually installed on the board" should not need ssh."""
+    base, _, _ = running_server
+    with urllib.request.urlopen(f"{base}/health", timeout=5) as response:
+        payload = json.loads(response.read())
+
+    assert len(payload["encoder_fingerprint"]) == 16
+    assert payload["islkit_version"]
+
+
 def test_an_unknown_path_is_404(running_server):
     base, _, _ = running_server
     with pytest.raises(urllib.error.HTTPError) as excinfo:
