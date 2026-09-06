@@ -7,7 +7,7 @@
  * its websocket, and the states it shows are the orchestrator's real ones.
  *
  * Events from Python:
- *   status  {host, linked, auto_ack, screen, last_seq}
+ *   status  {host, linked, auto_ack, screen, last_seq, panel}
  *   line    {dir: 'down'|'up', msg, note, t}
  *   history {lines: [line, ...]}       replayed on connect
  *
@@ -25,6 +25,7 @@ const el = {
   badge: document.getElementById('conn-badge'),
   host: document.getElementById('host-text'),
   autoack: document.getElementById('chk-autoack'),
+  panel: document.getElementById('panel-badge'),
   hello: document.getElementById('btn-hello'),
   start: document.getElementById('btn-start'),
   stop: document.getElementById('btn-stop'),
@@ -123,6 +124,17 @@ ui.on_message('status', (s) => {
     ? `${s.host}:9977` + (s.last_seq !== null && s.last_seq !== undefined ? `  ·  last seq ${s.last_seq}` : '')
     : 'no host found';
   el.autoack.checked = !!s.auto_ack;
+
+  /* A real panel on the far end of the Bridge acks for itself, so auto-ack is
+   * forced off and the toggle is locked -- turning it back on would report every
+   * message as having landed twice. */
+  const panel = s.panel;
+  el.panel.textContent = panel ? String(panel) : 'stand-in';
+  el.panel.className = panel ? 'badge badge-on' : 'badge badge-off';
+  el.autoack.disabled = !!panel;
+  el.autoack.title = panel
+    ? 'The panel is acking for itself'
+    : 'Ack every seq, the way the panel firmware does';
 });
 
 ui.on_message('line', (entry) => {

@@ -15,14 +15,20 @@
 
     <!--
       No transport selector here, unlike the UART test harness this grew from.
-      There is exactly one path: this page <-> App Lab <-> the orchestrator's
-      HTTP API on the Linux host. No Bridge, no UART, because the MCU sketch
-      still owns its own mock state machine and would be a second source of seq.
+      One path up: this page <-> App Lab <-> the orchestrator's HTTP API on the
+      Linux host.
+
+      Downward there may be two. With no panel flashed this page IS the panel
+      and acks on its behalf. With the relay sketch on the STM32, every line
+      also goes out over the Bridge to the real CrowPanel, the panel does its
+      own acking, and this page becomes a mirror. The Panel badge says which.
     -->
     <section class="transport">
       <span class="link-label">Orchestrator</span>
       <span id="conn-badge" class="badge badge-off">disconnected</span>
       <span id="host-text" class="host-text">looking for the host&hellip;</span>
+      <span class="link-label">Panel</span>
+      <span id="panel-badge" class="badge badge-off">stand-in</span>
       <label class="ack-toggle">
         <input type="checkbox" id="chk-autoack" checked>
         auto-ack

@@ -29,7 +29,7 @@ flowchart LR
     end
 
     subgraph BOX["App Lab container"]
-        CONS["signally-console<br/>panel stand-in<br/>web UI :7000"]
+        CONS["signally-console<br/>panel mirror, or stand-in<br/>web UI :7000"]
     end
 
     SPK([speaker · aplay])
@@ -41,21 +41,41 @@ flowchart LR
     CONS --- BROWSER
     VIEW -.->|"MJPEG"| BROWSER
 
-    PANEL["CrowPanel + STM32<br/>not wired in yet"]
-    CONS -.->|"future: Bridge + UART"| PANEL
+    RELAY["signally_panel_relay<br/>STM32 sketch"]
+    PANEL["CrowPanel panel/<br/>LVGL, acks every seq"]
+    CONS -->|"Bridge: display_line"| RELAY
+    RELAY -.->|"Bridge: panel_uplink<br/>ack · button · hello"| CONS
+    RELAY -->|"UART 115200 8N1, D0/D1"| PANEL
+    PANEL -.->|"ack · button"| RELAY
 
     style REC fill:#dbeafe,stroke:#2563eb
     style ORC fill:#ffedd5,stroke:#ea580c
     style CONS fill:#fef3c7,stroke:#d97706
-    style PANEL fill:#f3f4f6,stroke:#9ca3af,stroke-dasharray: 4 3
+    style RELAY fill:#f3f4f6,stroke:#9ca3af,stroke-dasharray: 4 3
+    style PANEL fill:#dcfce7,stroke:#16a34a
 ```
 
-**The physical panel is not part of the running stack.** `applab/signally-console`
-stands in for it: it subscribes to `/events`, mirrors every protocol line into a
-browser page, acks each `seq` back on `/uplink` exactly as the firmware does, and
-turns the page's START / STOP / MUTE buttons into real `{"t":"button"}` messages.
-The MCU sketch is untouched and its Bridge path is disabled, deliberately — two
-components minting `seq` would be worse than no panel at all.
+**The panel is wired in, and the last hop is untested.** Its firmware lives in
+[`panel/`](../panel/) and implements the display protocol in full -- `idle`,
+`listening`, `analyzing`, `result`, `unclear` and `error` all render and all ack.
+[`mcu/signally_panel_relay/`](../mcu/signally_panel_relay/) moves whole lines
+between the Bridge and the UART, and `signally-console` forwards to it. The
+STM32-to-panel half is verified on hardware; the Bridge half compiles against
+the real API but has not been run with the stack up. See [`panel.md`](panel.md).
+
+**The console is now a mirror, not a stand-in -- when a panel answers.** On each
+reconnect it probes for a relay with `panel_hello`. With one present it forwards
+every downlink line and **stops acking**, because the panel is acking for itself;
+two components acking one `seq` would report every message as having landed
+twice, and would go on saying so after the panel fell silent. With no relay it
+behaves exactly as before, acking on the panel's behalf so the orchestrator sees
+the traffic it will see from real hardware.
+
+The relay is deliberately witless. It does not parse the protocol, hold state, or
+mint `seq` -- it moves lines. Everything that decides anything stays on the Linux
+side. The other sketch, [`mcu/uno_q_mcu_uart_test/`](../mcu/uno_q_mcu_uart_test/),
+*does* have a mock state machine and is the bench harness for working on the
+panel with no stack running; only one of the two can be flashed at a time.
 
 ### Who owns what
 

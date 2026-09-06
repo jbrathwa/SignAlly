@@ -4,9 +4,8 @@ A two-way ISL (Indian Sign Language) ↔ speech bridge for the Arduino UNO Q. A
 camera watches someone sign; the device says the phrase out loud and shows it on
 a panel. **This repository holds the device's production code** — the recognition
 service, the orchestrator that turns glosses into speech and display messages,
-the App Lab console that stands in for the panel, and the script that starts all
-three. Model research lives in the separate `islkit` project; the
-panel firmware lives elsewhere again.
+the panel firmware, the App Lab console, and the script that starts it all.
+Model research lives in the separate `islkit` project.
 
 ## Layout
 
@@ -15,9 +14,11 @@ panel firmware lives elsewhere again.
 | `orchestrator/` | Device state, gloss → phrase, audio, and the display JSON protocol. Stdlib only, Python ≥3.11 |
 | `recognition/` | Camera in, glosses out over HTTP. MediaPipe + torch via `islkit`, Python 3.12 exactly |
 | `applab/signally-console/` | App Lab app standing in for the CrowPanel: mirrors the protocol stream in a browser, acks it, sends button presses back |
+| `panel/` | CrowPanel 2.8" ESP32 display firmware. PlatformIO, LVGL v8. Renders the display protocol and acks it — see [the panel doc](docs/panel.md) |
+| `mcu/` | Two STM32 sketches, one flashed at a time: `signally_panel_relay/` moves protocol lines between the App Lab Bridge and the panel's UART, and `uno_q_mcu_uart_test/` is the bench harness that drives the panel from typed commands with no stack running |
 | `scripts/signally-start.sh` | Start, stop and inspect all three processes on the board |
 | `phrases.json` | The gloss → English + wav table the orchestrator is keyed on. 17 glosses |
-| `docs/` | [Architecture](docs/architecture.md), and the [recognition service API](docs/recognition-service-api.md) |
+| `docs/` | [Architecture](docs/architecture.md), the [panel](docs/panel.md), and the [recognition service API](docs/recognition-service-api.md) |
 
 ```mermaid
 flowchart LR

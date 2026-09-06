@@ -1,0 +1,8 @@
+{
+  "state": "LISTENING",
+  "battery": 65,
+  "cam_active": true,
+  "mic_active": false,
+  "speaker_active": false,
+  "result_text": "The kitchen light is now on. Living room set to 22 degrees."
+}

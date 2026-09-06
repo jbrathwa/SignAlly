@@ -10,10 +10,20 @@ everything the panel does that the orchestrator can observe:
     messages,
   * sends a `hello` on connect so the orchestrator replies and resends state.
 
-There is no Bridge and no UART here on purpose. The MCU sketch still owns its
-own mock state machine and its Bridge code is disabled, so wiring through it
-would mean two components minting `seq`. When the panel arrives, the Bridge hop
-slots in underneath this file without changing anything the orchestrator sees.
+When the physical panel is attached it also forwards every line down to it,
+over the Bridge to mcu/signally_panel_relay on the STM32, which writes it to the
+UART. The panel's own acks and button presses come back the same way and are
+POSTed to /uplink unchanged.
+
+The panel is optional and detected, not configured: on each (re)connect this
+probes for a relay with `panel_hello`. With one present the console STOPS acking
+on the panel's behalf -- the real acks are coming up the wire and a second set
+from here would be indistinguishable from a panel that is answering when it is
+not. With no relay it behaves exactly as it always did, as a stand-in.
+
+Nothing here parses or rewrites the protocol. Lines go down byte-for-byte as the
+orchestrator framed them, which is what keeps its 256-byte guarantee meaningful,
+and come back up as the panel wrote them.
 
 The orchestrator is on the Linux host, not in this container, so the host
 address is discovered at runtime from /proc/net/route. Do not hard-code the
@@ -31,7 +41,7 @@ import urllib.error
 import urllib.request
 
 from arduino.app_bricks.web_ui import WebUI
-from arduino.app_utils import App, Logger
+from arduino.app_utils import App, Bridge, Logger
 
 logger = Logger("SignAllyConsole")
 ui = WebUI()
@@ -42,6 +52,22 @@ PROBE_TIMEOUT_S = 3
 POST_TIMEOUT_S = 3
 RECONNECT_DELAY_S = 2.0
 BACKLOG_MAX = 200
+
+# Bridge method names. Must match mcu/signally_panel_relay/config.h exactly --
+# a typo gives you a console that runs, logs nothing unusual, and never forwards.
+RPC_DISPLAY_LINE = "display_line"
+RPC_PANEL_UPLINK = "panel_uplink"
+RPC_PANEL_HELLO = "panel_hello"
+
+# Short: this runs on every reconnect and a board with no relay flashed must not
+# stall the stream for the default 10s to find that out.
+PANEL_PROBE_TIMEOUT_S = 2
+
+# Uplink from the panel is handed to a worker rather than POSTed inside the RPC
+# callback. A dead orchestrator makes each POST wait for its 3s timeout, and
+# doing that in the callback would stall the Bridge's read loop and back up the
+# panel's acks behind it.
+UPLINK_QUEUE_MAX = 100
 
 # Everything the page needs to redraw itself after a refresh. The browser can
 # connect long after the stream started, and a console that only shows what
@@ -55,6 +81,7 @@ _state = {
     "auto_ack": True,    # ack every seq, like the real panel
     "screen": "boot",    # what the panel would be showing
     "last_seq": None,
+    "panel": None,       # relay firmware string once probed, else None
 }
 _state_lock = threading.Lock()
 
@@ -117,6 +144,75 @@ def _push_status():
 
 
 # ---------------------------------------------------------------------------
+# Talking to the panel, over the Bridge
+# ---------------------------------------------------------------------------
+
+_uplink_q: "queue.Queue[str]" = queue.Queue(maxsize=UPLINK_QUEUE_MAX)
+
+
+def panel_probe():
+    """Ask the STM32 whether a relay is flashed. Returns its fw string or None.
+
+    Every failure mode here means the same thing operationally -- no panel -- so
+    they collapse into one None. Distinguishing "no router socket" from "no
+    sketch" from "wrong sketch" is a job for the Monitor log, not for this.
+    """
+    try:
+        fw = Bridge.call(RPC_PANEL_HELLO, timeout=PANEL_PROBE_TIMEOUT_S)
+        logger.info(f"panel relay present: {fw}")
+        return str(fw)
+    except Exception as exc:
+        logger.info(f"no panel relay ({exc.__class__.__name__}); console stands in")
+        return None
+
+
+def panel_send(raw: str) -> bool:
+    """Forward one protocol line to the panel, exactly as it arrived.
+
+    `raw` is the SSE payload, not a re-serialisation of the parsed object: the
+    orchestrator already framed it and checked it against its 256-byte limit,
+    and re-encoding here would risk changing the byte count it guaranteed.
+    """
+    try:
+        Bridge.notify(RPC_DISPLAY_LINE, raw)
+        return True
+    except Exception as exc:
+        logger.warning(f"panel notify failed: {exc!r}")
+        return False
+
+
+def on_panel_uplink(line):
+    """The panel sent something: an ack, a button press, or its hello.
+
+    Runs in the Bridge's callback thread. It only enqueues -- see
+    UPLINK_QUEUE_MAX for why the POST does not happen here.
+    """
+    text = (line or "").strip() if isinstance(line, str) else str(line).strip()
+    if not text:
+        return
+    try:
+        _uplink_q.put_nowait(text)
+    except queue.Full:
+        # Dropping the oldest would reorder acks; dropping the newest at least
+        # keeps what we have contiguous. Either way it is a defect signal: the
+        # panel emits about one line per second.
+        logger.warning("uplink queue full, line dropped")
+
+
+def uplink_worker():
+    """Drain the panel's uplink into POST /uplink, forever."""
+    while True:
+        text = _uplink_q.get()
+        try:
+            msg = json.loads(text)
+        except json.JSONDecodeError:
+            logger.warning(f"undecodable uplink from panel, skipped: {text[:120]!r}")
+            _record("up", {"raw": text}, note="undecodable")
+            continue
+        post_uplink(msg)
+
+
+# ---------------------------------------------------------------------------
 # Talking to the orchestrator
 # ---------------------------------------------------------------------------
 
@@ -146,7 +242,7 @@ def post_uplink(msg: dict) -> bool:
         return False
 
 
-def _handle_down(msg: dict):
+def _handle_down(msg: dict, raw: str = ""):
     """One protocol object arrived from the orchestrator."""
     kind = msg.get("t")
     seq = msg.get("seq")
@@ -163,14 +259,25 @@ def _handle_down(msg: dict):
         if seq is not None:
             _state["last_seq"] = seq
         auto_ack = _state["auto_ack"]
+        panel = _state["panel"]
 
     _record("down", msg)
     _push_status()
 
+    # Down to the real panel, if one is attached. Its ack comes back through
+    # on_panel_uplink() a few milliseconds later.
+    if panel and raw:
+        panel_send(raw)
+
     # The panel acks by seq. `hello` carries none, and the firmware answers it
     # with an ack of seq 0 — mirror that so the orchestrator sees the same
     # traffic it will see from real hardware.
-    if not auto_ack:
+    #
+    # Suppressed once a real panel is answering: two acks for one seq would tell
+    # the orchestrator its message landed twice, and would keep saying so even
+    # after the panel stopped replying. `auto_ack` is forced False when the
+    # probe finds a relay, so this is belt and braces.
+    if not auto_ack or panel:
         return
     if kind == "hello":
         post_uplink({"t": "ack", "seq": 0})
@@ -182,9 +289,18 @@ def pump():
     """Subscribe to /events and forward forever. Reconnects on its own."""
     while True:
         host = find_host()
+
+        # Re-probed per connect rather than once at startup: the STM32 can be
+        # reflashed, unplugged or reset while this process keeps running, and a
+        # console that decided "no panel" at boot would never notice one arrive.
+        panel = panel_probe()
+
         with _state_lock:
             _state["host"] = host
             _state["linked"] = False
+            _state["panel"] = panel
+            if panel:
+                _state["auto_ack"] = False
         _push_status()
 
         if not host:
@@ -214,7 +330,7 @@ def pump():
                     except json.JSONDecodeError:
                         logger.warning(f"undecodable line, skipped: {payload[:120]!r}")
                         continue
-                    _handle_down(msg)
+                    _handle_down(msg, payload)
 
         except Exception as exc:
             logger.warning(f"stream ended ({exc!r}); reconnecting")
@@ -247,9 +363,17 @@ def on_hello(client, data):
 
 
 def on_set_auto_ack(client, data):
-    """Let an operator stop acking, to watch what a silent panel looks like."""
+    """Let an operator stop acking, to watch what a silent panel looks like.
+
+    Turning it back ON is refused while a real panel is attached: the panel is
+    already acking, and a second set would misreport every message as having
+    landed twice. Turning it off is always allowed.
+    """
     value = bool((data or {}).get("on", True))
     with _state_lock:
+        if value and _state["panel"]:
+            logger.info("auto-ack stays off: a real panel is acking")
+            value = False
         _state["auto_ack"] = value
     logger.info(f"auto-ack {'on' if value else 'off'}")
     _push_status()
@@ -265,6 +389,17 @@ def on_ui_connect(connection):
         logger.warning(f"could not replay history: {exc!r}")
     _push_status()
 
+
+# The panel calls this; register before the pump so a relay that is already
+# mid-conversation is never answered with "no such method".
+try:
+    Bridge.provide(RPC_PANEL_UPLINK, on_panel_uplink)
+except Exception as exc:
+    # No router socket: running outside App Lab, or the Bridge is unavailable.
+    # The console still works as a stand-in, which is the pre-panel behaviour.
+    logger.warning(f"could not provide {RPC_PANEL_UPLINK}: {exc!r}")
+
+threading.Thread(target=uplink_worker, name="panel-uplink", daemon=True).start()
 
 ui.on_message("button", on_button)
 ui.on_message("hello", on_hello)

@@ -4,3 +4,6 @@ __pycache__/
 audio/
 .venv/
 *.egg-info/
+
+# PlatformIO build output for the panel firmware
+panel/.pio/
