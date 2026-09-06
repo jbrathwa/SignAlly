@@ -24,7 +24,9 @@ set -uo pipefail
 
 RECOGNITION_DIR="${RECOGNITION_DIR:-$HOME/islkit}"
 RECOGNITION_PY="${RECOGNITION_PY:-$HOME/recognition-venv/bin/python}"
-ORCHESTRATOR_DIR="${ORCHESTRATOR_DIR:-$HOME/SignAlly}"
+SIGNALLY_DIR="${SIGNALLY_DIR:-$HOME/SignAlly}"
+ORCHESTRATOR_DIR="${ORCHESTRATOR_DIR:-$HOME/SignAlly/orchestrator}"
+PHRASES="${PHRASES:-$SIGNALLY_DIR/phrases.json}"
 CONSOLE_APP="${CONSOLE_APP:-$HOME/SignAlly/applab/signally-console}"
 LOG_DIR="${LOG_DIR:-$HOME/logs}"
 
@@ -103,7 +105,7 @@ preflight() {
   local bad=0
   [ -x "$RECOGNITION_PY" ]  || { fail "no recognition venv at $RECOGNITION_PY"; bad=1; }
   [ -d "$RECOGNITION_DIR" ] || { fail "no recognition repo at $RECOGNITION_DIR"; bad=1; }
-  [ -f "$ORCHESTRATOR_DIR/phrases.json" ] || { fail "no phrases.json in $ORCHESTRATOR_DIR"; bad=1; }
+  [ -f "$PHRASES" ] || { fail "no phrases.json at $PHRASES"; bad=1; }
   [ -d "$ORCHESTRATOR_DIR/src/orchestrator" ] || { fail "no orchestrator source in $ORCHESTRATOR_DIR"; bad=1; }
   if [ "$CAMERA" != "auto" ]; then
     [ -e "/dev/video$CAMERA" ] || { fail "/dev/video$CAMERA does not exist"; bad=1; }
@@ -148,6 +150,7 @@ start_orchestrator() {
   fi
   info "starting orchestrator (system python3, no venv)"
   ( cd "$ORCHESTRATOR_DIR" && PYTHONPATH=src nohup python3 -m orchestrator \
+      --phrases "$PHRASES" \
       > "$LOG_DIR/orchestrator.log" 2>&1 & )
   if wait_for_port "$ORC_PORT" "orchestrator"; then
     ok "orchestrator up on $ORC_PORT"

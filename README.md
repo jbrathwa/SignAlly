@@ -3,16 +3,31 @@
 The device's brain stem. Consumes the recognition service's event stream and is
 the only component that speaks the display JSON protocol v1.
 
+## Layout
+
+Two projects, deliberately separate: they cannot share a Python.
+
+| | Runtime | Why |
+|---|---|---|
+| `orchestrator/` | stdlib only, Python ≥3.11 | No dependencies is why it is trusted with the audio path |
+| `recognition/` | `islkit`, Python 3.12 exactly | mediapipe 0.10.18 builds only cp39–cp312 |
+
+```bash
+cd orchestrator && PYTHONPATH=src python3 -m orchestrator
+```
+
 ## Run it
 
 Standard library only — no venv needed, including on the board's Python 3.13.
 The package is not installed, so `src` has to be on the path, and `--phrases`
-and `--audio-dir` default to paths relative to the working directory — run
-these from the repo root:
+and `--audio-dir` default to paths relative to the working directory. Run
+from `orchestrator/`; `phrases.json` now lives one level up, at the repo
+root, so point `--phrases` at it explicitly:
 
 ```bash
-PYTHONPATH=src python3 -m orchestrator       # 0.0.0.0:9977, upstream 127.0.0.1:9978
-PYTHONPATH=src python3 -m orchestrator --log-level DEBUG
+cd orchestrator
+PYTHONPATH=src python3 -m orchestrator --phrases ../phrases.json       # 0.0.0.0:9977, upstream 127.0.0.1:9978
+PYTHONPATH=src python3 -m orchestrator --phrases ../phrases.json --log-level DEBUG
 ```
 
 ## The API
@@ -30,12 +45,14 @@ docker gateway, so loopback-only would break the display chain.
 ## Tests
 
 ```bash
+cd orchestrator
 python -m pip install -e ".[dev]"
 python -m pytest -v
 ```
 
 Everything runs with no board, no camera and no sound, against the recorded
-fixtures in `tests/fixtures/` and an in-process fake recognition server.
+fixtures in `orchestrator/tests/fixtures/` and an in-process fake recognition
+server.
 
 ## Known limits
 

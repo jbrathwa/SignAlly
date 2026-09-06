@@ -5,7 +5,7 @@ import pytest
 
 from orchestrator.phrases import PhraseTable, PhraseTableError
 
-REPO = Path(__file__).resolve().parents[1]
+REPO = Path(__file__).resolve().parents[2]
 FIXTURES = Path(__file__).parent / "fixtures"
 
 

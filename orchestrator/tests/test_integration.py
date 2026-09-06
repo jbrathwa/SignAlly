@@ -16,7 +16,7 @@ from orchestrator.upstream import Upstream
 
 from .test_upstream import FakeRecognition, wait_for
 
-REPO = Path(__file__).resolve().parents[1]
+REPO = Path(__file__).resolve().parents[2]
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
