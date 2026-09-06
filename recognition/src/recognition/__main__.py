@@ -1,7 +1,7 @@
 """The recognition service: camera in, glosses out over HTTP.
 
-Run:  make run EXP=serve
-      make run EXP=serve ARGS="--camera 2 --start-active"
+Run:  python -m recognition
+      python -m recognition --camera 2 --start-active
 
 Three routes on 127.0.0.1:9978 — GET /results (SSE), POST /capture, GET /health.
 The orchestrator is the only consumer. Nothing here knows what a screen is.
@@ -87,7 +87,10 @@ def main() -> None:
 
     if not args.classifier.exists():
         raise SystemExit(
-            f'no classifier at {args.classifier}\nRun: make run EXP=pretrain ARGS="--weights-only"'
+            f"no classifier at {args.classifier}\n"
+            "The checkpoint isn't in this repo "
+            "— copy it in, then either pass --classifier <path> or set "
+            "RECOGNITION_CLASSIFIER to its location."
         )
 
     recogniser = SignRecogniser(

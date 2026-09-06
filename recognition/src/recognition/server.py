@@ -109,7 +109,7 @@ log = logging.getLogger("recognition.server")
 
 class _Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
-    server_version = "islkit-recognition/1"
+    server_version = "recognition/1"
 
     # -- helpers -----------------------------------------------------------
 
