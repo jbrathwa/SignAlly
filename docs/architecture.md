@@ -201,6 +201,17 @@ would read as a phrase the device never said. The device is allowed to say *I
 don't know*, and it should: a confident wrong answer puts words in a Deaf
 person's mouth.
 
+**A result owns the screen for three seconds.** Recognition re-arms the instant a
+take closes, so `recognised` is followed by `armed` within milliseconds, and
+forwarding both straight through put `state: listening` on the wire in the same
+breath as the `result`. The panel clears its label on any non-RESULT state, so
+the sentence was wiped under 100 ms later — measured on hardware, every time.
+`RESULT_DWELL_S` in `app.py` holds the screen instead, queueing whatever wanted
+it. The dwell lives in the orchestrator because it is the only thing that decides
+what the display shows, and outside `core` because it needs a clock. Three things
+still pre-empt it: a new take (`analyzing`), an explicit stop (`idle`), and a
+fault — a stale sentence must never outlive the news that the camera died.
+
 ---
 
 ## 4. When something dies
@@ -235,13 +246,19 @@ arriving.
   recognition (camera probed to `/dev/video0`), the orchestrator, and the console
   app, which compiled and flashed the relay and then reported
   `panel relay present: relay-0.1.0`.
-- **`result` and `unclear` have not been driven by a real gesture on hardware.**
-  Both are proven at the parser: all 28 lines the orchestrator can emit — every
+- **`result` and `unclear` now render from a real gesture**, verified on hardware
+  2026-09-07 with the 17-class head: `hospital` at 0.9995 and `goodafternoon` at
+  0.9929 reached the panel and held the screen for the full dwell. They are also
+  proven at the parser: all 28 lines the orchestrator can emit — every
   `phrases.json` row, every screen, every error text, and the 120-char `cap_text`
   boundary — were run through the panel's own `uart_receiver.h` compiled on a
   host, and all 28 parsed and acked with the longest at 153 bytes against the
-  256-byte cap. What is untested is the camera-to-screen path for those two, not
-  the framing.
+  256-byte cap.
+- **Tracking still flaps**, and nothing damps it yet. One 68 s hardware run
+  produced 39 messages, most of them `Move back` alternating with `listening` as
+  the signer drifted in and out of frame. The result dwell queues that chatter
+  rather than letting it wipe a sentence, so it is cosmetic now rather than
+  destructive — but the screen still churns between signs.
 - **No sustained fps figure is written down** for any given
   checkpoint / resolution / `--model-complexity` combination. Read it from
   `/health` on each deployment rather than trusting a number quoted anywhere.
