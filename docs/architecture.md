@@ -41,7 +41,7 @@ flowchart LR
     CONS --- BROWSER
     VIEW -.->|"MJPEG"| BROWSER
 
-    RELAY["signally_panel_relay<br/>STM32 sketch"]
+    RELAY["console sketch/<br/>STM32 relay"]
     PANEL["CrowPanel panel/<br/>LVGL, acks every seq"]
     CONS -->|"Bridge: display_line"| RELAY
     RELAY -.->|"Bridge: panel_uplink<br/>ack · button · hello"| CONS
@@ -55,13 +55,22 @@ flowchart LR
     style PANEL fill:#dcfce7,stroke:#16a34a
 ```
 
-**The panel is wired in, and the last hop is untested.** Its firmware lives in
+**The panel is wired in, and the chain runs end to end.** Verified on hardware
+on 2026-09-07: a `button start` on `/uplink` reached the CrowPanel as
+`{"t":"state","seq":4,"s":"listening"}` about 100 ms later and came back acked,
+as did an `error` ("Move back"), the `state` re-send that clears the error
+screen, and the `idle` on stop. `/health` showed `unknown: 0`, `unmatched_acks:
+0`, `dropped: 0` — every `seq` emitted was acked by the panel itself and matched.
+`result` and `unclear` have not yet been driven by a real gesture on hardware;
+both parse and ack correctly (see section 5). Its firmware lives in
 [`panel/`](../panel/) and implements the display protocol in full -- `idle`,
 `listening`, `analyzing`, `result`, `unclear` and `error` all render and all ack.
-[`mcu/signally_panel_relay/`](../mcu/signally_panel_relay/) moves whole lines
-between the Bridge and the UART, and `signally-console` forwards to it. The
-STM32-to-panel half is verified on hardware; the Bridge half compiles against
-the real API but has not been run with the stack up. See [`panel.md`](panel.md).
+[`applab/signally-console/sketch/`](../applab/signally-console/sketch/) moves
+whole lines between the Bridge and the UART, and `signally-console` forwards to
+it. The relay lives *inside* the console app because App Lab discovers and
+flashes a sketch only at `<app>/sketch/sketch.ino`; a relay kept anywhere else is
+never flashed, and the failure is silent — `panel_hello` times out and the
+console quietly falls back to standing in. See [`panel.md`](panel.md).
 
 **The console is now a mirror, not a stand-in -- when a panel answers.** On each
 reconnect it probes for a relay with `panel_hello`. With one present it forwards
@@ -75,7 +84,8 @@ The relay is deliberately witless. It does not parse the protocol, hold state, o
 mint `seq` -- it moves lines. Everything that decides anything stays on the Linux
 side. The other sketch, [`mcu/uno_q_mcu_uart_test/`](../mcu/uno_q_mcu_uart_test/),
 *does* have a mock state machine and is the bench harness for working on the
-panel with no stack running; only one of the two can be flashed at a time.
+panel with no stack running; only one of the two can be flashed at a time, and
+starting the console app flashes the relay over whatever was there.
 
 ### Who owns what
 
@@ -220,9 +230,18 @@ arriving.
 
 ## 5. What is not verified
 
-- **The three-process stack has run on this board**, but not in its current
-  layout. The move into `SignAlly/` changed every path the start script uses and
-  those paths have not been exercised on hardware since.
+- **The three-process stack runs in its current layout.** Exercised on
+  `white-witch` on 2026-09-07: `scripts/signally-start.sh start` brought up
+  recognition (camera probed to `/dev/video0`), the orchestrator, and the console
+  app, which compiled and flashed the relay and then reported
+  `panel relay present: relay-0.1.0`.
+- **`result` and `unclear` have not been driven by a real gesture on hardware.**
+  Both are proven at the parser: all 28 lines the orchestrator can emit — every
+  `phrases.json` row, every screen, every error text, and the 120-char `cap_text`
+  boundary — were run through the panel's own `uart_receiver.h` compiled on a
+  host, and all 28 parsed and acked with the longest at 153 bytes against the
+  256-byte cap. What is untested is the camera-to-screen path for those two, not
+  the framing.
 - **No sustained fps figure is written down** for any given
   checkpoint / resolution / `--model-complexity` combination. Read it from
   `/health` on each deployment rather than trusting a number quoted anywhere.

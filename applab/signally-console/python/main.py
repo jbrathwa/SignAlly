@@ -1,7 +1,8 @@
-"""SignAlly console — a stand-in for the CrowPanel, running inside App Lab.
+"""SignAlly console — the CrowPanel's mirror, running inside App Lab.
 
-The physical panel is not attached yet, so this takes its place. It does
-everything the panel does that the orchestrator can observe:
+With a panel attached it forwards to it and shows the same traffic in a browser;
+with none it stands in, doing everything the panel does that the orchestrator can
+observe:
 
   * subscribes to the orchestrator's SSE `/events` and mirrors every protocol
     line into a browser page,
@@ -11,7 +12,7 @@ everything the panel does that the orchestrator can observe:
   * sends a `hello` on connect so the orchestrator replies and resends state.
 
 When the physical panel is attached it also forwards every line down to it,
-over the Bridge to mcu/signally_panel_relay on the STM32, which writes it to the
+over the Bridge to the relay sketch in sketch/ on the STM32, which writes it to the
 UART. The panel's own acks and button presses come back the same way and are
 POSTed to /uplink unchanged.
 
@@ -53,7 +54,7 @@ POST_TIMEOUT_S = 3
 RECONNECT_DELAY_S = 2.0
 BACKLOG_MAX = 200
 
-# Bridge method names. Must match mcu/signally_panel_relay/config.h exactly --
+# Bridge method names. Must match sketch/config.h exactly --
 # a typo gives you a console that runs, logs nothing unusual, and never forwards.
 RPC_DISPLAY_LINE = "display_line"
 RPC_PANEL_UPLINK = "panel_uplink"

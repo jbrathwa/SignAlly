@@ -1,6 +1,12 @@
 /**
- * @file signally_panel_relay.ino
+ * @file sketch.ino
  * SignAlly -- the STM32 hop between App Lab and the CrowPanel.
+ *
+ * It lives HERE, inside the console app, because that is the only place App Lab
+ * looks: a sketch is discovered at <app>/sketch/sketch.ino and nowhere else, and
+ * it is compiled and flashed when the app starts. Moving this file back out to
+ * mcu/ gives you a relay that is never flashed, a `panel_hello` that times out,
+ * and a console that silently falls back to standing in for the panel.
  *
  *   orchestrator (Linux :9977)
  *        |  SSE /events, POST /uplink

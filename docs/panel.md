@@ -9,7 +9,7 @@ at a time**:
 
 | Sketch | Role |
 | :--- | :--- |
-| [`mcu/signally_panel_relay/`](../mcu/signally_panel_relay/) | The real path. Moves lines between the App Lab Bridge and the UART. No state machine, no `seq` |
+| [`applab/signally-console/sketch/`](../applab/signally-console/sketch/) | The real path. Moves lines between the App Lab Bridge and the UART. No state machine, no `seq`. Flashed by App Lab when the console app starts |
 | [`mcu/uno_q_mcu_uart_test/`](../mcu/uno_q_mcu_uart_test/) | Bench harness. Mock state machine driven by typed commands, for testing the panel with no Linux stack running |
 
 ---
@@ -23,7 +23,7 @@ orchestrator (Linux, :9977)
 signally-console (App Lab container)          |
      |  Bridge.notify("display_line")         |  Bridge.notify("panel_uplink")
      v                                        |
-mcu/signally_panel_relay  (STM32)  ───────────┘
+console sketch/ on the STM32  ────────────────┘
      |  UART 115200 8N1, D0/D1
      v
 panel/  (CrowPanel ESP32)
@@ -151,15 +151,27 @@ demo_manager: LittleFS mounted. demo_state.json NOT applied -- type 'reload' to 
 
 ### STM32
 
-Arduino requires the sketch folder name to equal the `.ino` name, which is why
-each sketch has its own directory. Both build in place:
+**The relay is not flashed by hand.** It lives at
+`applab/signally-console/sketch/sketch.ino` because App Lab discovers a sketch
+only at `<app>/sketch/sketch.ino`, and starting the console app compiles and
+uploads it:
+
+```bash
+arduino-app-cli app start ~/SignAlly/applab/signally-console
+```
+
+That is the whole procedure, and `scripts/signally-start.sh start` already does
+it. Watch `~/logs/console.log` for `sketch compiling and uploading`; the
+libraries resolve themselves, which is why `sketch.yaml` lists none.
+
+The **bench harness** is the one you flash yourself. Arduino requires the sketch
+folder name to equal the `.ino` name, which is why it has its own directory:
 
 ```powershell
 $cli = "$env:LOCALAPPDATA\AppLab\resources\arduino\arduino-cli\arduino-cli.exe"
 $cfg = "$env:LOCALAPPDATA\AppLab\a15\arduino-cli.yaml"
 
 $sketch = "mcu/uno_q_mcu_uart_test"      # bench harness
-# $sketch = "mcu/signally_panel_relay"   # the real path
 
 & $cli --config-file $cfg compile --fqbn arduino:zephyr:unoq $sketch
 & $cli --config-file $cfg upload -p COM4 --fqbn arduino:zephyr:unoq $sketch
@@ -169,9 +181,10 @@ Flashing one replaces the other. Pick by what you are doing:
 
 - **Bringing up or changing the panel** -> `uno_q_mcu_uart_test`. Needs nothing
   running on the Linux side, and gives you typed commands over USB serial.
-- **Running the stack** -> `signally_panel_relay`. Needs the orchestrator and the
-  App Lab console up, and it logs to App Lab's Monitor rather than USB serial --
-  so a relay sitting on the bench looks like a board doing nothing at all.
+- **Running the stack** -> the console's own `sketch/`. You do not flash this by
+  hand: `arduino-app-cli app start` compiles and uploads it, replacing whatever
+  was on the STM32. It logs to App Lab's Monitor rather than USB serial -- so a
+  relay sitting on the bench looks like a board doing nothing at all.
 
 ### The test
 
@@ -208,26 +221,28 @@ uart_link: [UART TX] {"t":"ack","seq":3}
 
 ## 5. What is not built, and what is not verified
 
-- **The Bridge hop is written but not run.** Both halves exist --
-  `panel_send()` / `on_panel_uplink()` in the console, `onDisplayLine()` /
-  `pumpUplink()` in `signally_panel_relay` -- and both compile against the real
-  `Arduino_RouterBridge` 0.4.3 API. Neither has been exercised with the stack up.
-  What is proven is narrower than it looks: the `applab-bridgetest` spike showed
-  a Python-to-sketch round trip using `Bridge.provide` + `Bridge.call`; the rest
-  is written from the library's own README and the App Lab Python stubs.
+- **The Bridge hop now runs.** Verified on hardware 2026-09-07, with the full
+  stack up: the console's probe answered `panel relay present: relay-0.1.0`, and
+  every downlink line reached the panel about 100 ms later and came back acked.
+  Both halves are exercised -- `panel_send()` / `on_panel_uplink()` in the
+  console, `onDisplayLine()` / `pumpUplink()` in the console's `sketch/`.
 
-  Two specific things to watch on the first run:
+  The two worries this section used to carry are both settled:
 
-  - **`provide_safe` vs `provide`.** The relay registers `display_line` with
-    `provide_safe`, so the callback runs in the main loop thread -- the same
-    thread that reads the UART. `provide` (the unsafe form) is the one the spike
-    verified. If downlink never reaches the panel, try `provide` -- but then give
-    the callback its own queue for `loop()` to drain, because two threads on one
-    UART with no lock is a race, not a fix. There is a comment on the function
-    saying exactly this.
-  - **Uplink is `Bridge.notify` from the sketch.** Documented in the library
-    README, unverified here. It is called from `loop()` and never from inside an
-    RPC callback, which is what the README's IPC-deadlock warning is about.
+  - **`provide_safe` is correct, and there is no reason to fall back to
+    `provide`.** It binds the method behind a `"__safe__"` queue that
+    `update_safe()` drains, and the Zephyr core calls that every iteration
+    through the weak `__loopHook()` (`cores/arduino/main.cpp:45`). So the
+    callback really does run in the main loop thread -- the same one that reads
+    the UART -- and the sketch needs no explicit pump. It is strictly safer than
+    the spike's `provide`, which would put two threads on one UART with no lock.
+    Do not define your own `__loopHook` in this sketch: it is weak, and
+    overriding it silently stops downlink.
+  - **Uplink by `Bridge.notify` from the sketch is the vendor's own pattern**,
+    not an improvisation -- it is what
+    `core-and-foundational/03-bridge-basics/02-send-data-to-python` does, down to
+    calling it from `loop()` and registering the Python side with
+    `Bridge.provide` before `App.run()`.
 - **`status` has no upstream source.** The panel renders battery and mute icons
   from `{"t":"status"}`, but the orchestrator has no battery reading and never
   emits the message. It does track `muted` in `DeviceState`. The panel's handler

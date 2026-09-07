@@ -31,7 +31,7 @@
  * Python -- as verified by the applab-bridgetest spike. Dead code that names a
  * non-existent header is worse than no code, so it is gone.
  *
- * The Bridge belongs to the OTHER sketch: mcu/signally_panel_relay, which is
+ * The Bridge belongs to the OTHER sketch: applab/signally-console/sketch/, which is
  * what you flash when the orchestrator is driving. This one is the bench
  * harness and is driven by typing at the Serial Monitor.
  */

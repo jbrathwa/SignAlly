@@ -13,9 +13,9 @@ Model research lives in the separate `islkit` project.
 |---|---|
 | `orchestrator/` | Device state, gloss → phrase, audio, and the display JSON protocol. Stdlib only, Python ≥3.11 |
 | `recognition/` | Camera in, glosses out over HTTP. MediaPipe + torch via `islkit`, Python 3.12 exactly |
-| `applab/signally-console/` | App Lab app standing in for the CrowPanel: mirrors the protocol stream in a browser, acks it, sends button presses back |
+| `applab/signally-console/` | App Lab app: mirrors the protocol stream in a browser and forwards it to the panel. `sketch/` is the STM32 relay that carries lines between the Bridge and the panel's UART — it lives inside the app because App Lab flashes a sketch only from `<app>/sketch/sketch.ino` |
 | `panel/` | CrowPanel 2.8" ESP32 display firmware. PlatformIO, LVGL v8. Renders the display protocol and acks it — see [the panel doc](docs/panel.md) |
-| `mcu/` | Two STM32 sketches, one flashed at a time: `signally_panel_relay/` moves protocol lines between the App Lab Bridge and the panel's UART, and `uno_q_mcu_uart_test/` is the bench harness that drives the panel from typed commands with no stack running |
+| `mcu/uno_q_mcu_uart_test/` | Bench harness: a mock state machine that drives the panel from typed commands with no stack running. Flashing it replaces the relay, so only one of the two is on the STM32 at a time |
 | `scripts/signally-start.sh` | Start, stop and inspect all three processes on the board |
 | `phrases.json` | The gloss → English + wav table the orchestrator is keyed on. 17 glosses |
 | `docs/` | [Architecture](docs/architecture.md), the [panel](docs/panel.md), and the [recognition service API](docs/recognition-service-api.md) |

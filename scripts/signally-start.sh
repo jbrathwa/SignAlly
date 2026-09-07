@@ -276,8 +276,10 @@ print('  '.join(f'{k}={h.get(k)}' for k in sys.argv[1:]))
       warn "camera view: not listening on $VIEW_PORT"
     fi
   fi
-  info "The physical CrowPanel is NOT part of this stack. The console app stands"
-  info "in for it; the MCU sketch is untouched and its Bridge path is disabled."
+  info "The CrowPanel is driven through the console app: starting it flashes the"
+  info "relay in applab/signally-console/sketch/ onto the STM32, which carries"
+  info "protocol lines to the panel over UART. With no panel answering, the"
+  info "console falls back to standing in for it. 'Panel' on the page says which."
 }
 
 do_logs() {
