@@ -43,6 +43,32 @@ TAKES_DIR="${TAKES_DIR:-$HOME/takes}"
 CAMERA="${CAMERA:-auto}"
 RESOLUTION="${RESOLUTION:-640x480}"
 
+# XNNPACK threads per MediaPipe inference node. MediaPipe ships every node with
+# an empty `xnnpack {}` block, which means ONE thread — measured here as 0.99 of
+# this board's four cores and ~2.2 fps with a signer in shot. That is under the
+# rate at which recognition stops working at all (2.5% top-1 at 2 fps against
+# 100% at 5), so this is not a tuning knob, it is the difference between a
+# device that recognises signs and one that returns confident noise.
+# Measured on 2026-09-07 against a signer, replaying one captured burst through
+# each setting so the scene could not drift between them:
+#
+#     threads   1      2      3      4
+#     fps       2.32   4.01   5.38   4.07
+#     cores     1.08   2.04   2.92   3.67
+#
+# 3 wins and clears 5 fps. 4 oversubscribes the board's four cores and hands
+# most of the gain back, so MORE IS NOT BETTER — re-measure before changing it.
+# Landmark output is bit-identical to the unthreaded path (max abs diff 0.0).
+# MP_THREADS=0 restores MediaPipe's own default.
+MP_THREADS="${MP_THREADS:-3}"
+
+# The 17-class head trained for this device's camera (islkit experiments/
+# device_head.py), not the 262-class INCLUDE one. The vocabulary matches
+# phrases.json exactly, so a recognised gloss always has somewhere to go —
+# with the 262-class head, 245 of its classes had no phrase row and every one
+# of them became "unclear".
+CLASSIFIER="${CLASSIFIER:-$HOME/models/classifier_17.pt}"
+
 # The annotated debug view, on its own port. The recognition API stays on
 # loopback — nothing off the board should be able to start the camera — but this
 # binds to 0.0.0.0 so a laptop can watch. Anyone who can reach it can see the
@@ -135,10 +161,11 @@ start_recognition() {
     fi
     ok "camera is /dev/video$CAMERA"
   fi
-  info "starting recognition on camera $CAMERA at $RESOLUTION"
+  info "starting recognition on camera $CAMERA at $RESOLUTION (xnnpack threads: $MP_THREADS)"
   ( cd "$RECOGNITION_DIR" && PYTHONPATH=src nohup "$RECOGNITION_PY" -m recognition \
       --camera "$CAMERA" --resolution "$RESOLUTION" --view-port "$VIEW_PORT" \
-      --unlabelled-root "$TAKES_DIR" \
+      --unlabelled-root "$TAKES_DIR" --num-threads "$MP_THREADS" \
+      --classifier "$CLASSIFIER" \
       > "$LOG_DIR/recognition.log" 2>&1 & )
   if wait_for_port "$REC_PORT" "recognition"; then
     ok "recognition up on $REC_PORT"
@@ -248,7 +275,7 @@ print('  '.join(f'{k}={h.get(k)}' for k in sys.argv[1:]))
   }
 
   if port_open "$REC_PORT"; then
-    ok "recognition   :$REC_PORT   $(probe "$REC_PORT" ok fps state tracking)"
+    ok "recognition   :$REC_PORT   $(probe "$REC_PORT" ok fps threads state tracking)"
   else
     fail "recognition   :$REC_PORT   not listening"
   fi
