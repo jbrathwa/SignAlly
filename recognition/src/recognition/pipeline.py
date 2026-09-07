@@ -58,8 +58,49 @@ _REFERENCE_COUNTS = {
     "max_frames": 400,  # 32 s runaway cap
 }
 # A one-frame run is a MediaPipe dropout, not a state change.
-_FLOORS = {"pre_roll": 1, "max_frames": 30}
+# A one-frame run is a MediaPipe dropout, not a state change.
+#
+# `rest_to_close` needs a bigger floor than the rest, and not for tidiness.
+# AutoTake reads an *untracked* hand as rest (deliberately — MediaPipe loses
+# hands constantly), so any run of dropped frames that reaches rest_to_close
+# ends the take. Measured over the 47 takes recorded on the board on
+# 2026-09-07, runs of consecutive frames with no dominant wrist tracked are
+# 1-5 long, histogram {1:15, 2:61, 3:27, 5:2}. Against that:
+#
+#     rest_to_close   2      3      4      6
+#     dropouts that   85.7%  27.6%  1.9%   0.0%
+#     close a take
+#
+# Scaling the Mac's 8 frames down by frame rate lands on 2 at the board's ~3
+# fps, which is why 32% of takes came back too_short. Dropout length does not
+# shrink with the frame rate — the tracker needs about the same number of
+# FRAMES to recover either way — so this floor is a frame count on purpose and
+# is not scaled. At the 12.5 fps reference it is inert: 8 > 6.
+DROPOUT_FLOOR = 6
+_FLOORS = {"pre_roll": 1, "max_frames": 30, "rest_to_close": DROPOUT_FLOOR}
 _DEFAULT_FLOOR = 2
+
+# `min_frames` is a resampling floor, not a duration: encode_clip resamples
+# rather than pads, so too few frames classify without complaint on almost no
+# evidence. But a fixed 8 is 2.5 s at the board's ~3 fps, longer than many real
+# signs, and it rejected 32% of takes. Scale it with the rate while never
+# rising above the hand-tuned 8 nor falling below 4 — below that there is not
+# enough of a trajectory left to resample honestly.
+MIN_FRAMES_SECONDS = 1.2
+MIN_FRAMES_FLOOR, MIN_FRAMES_CEILING = 4, 8
+
+# The rate measured during warmup is usually the rate with nobody in shot.
+# MediaPipe skips both hand models when it finds no hands, so an empty room runs
+# at ~11 fps on this board and a signer at ~3. Timing derived against the empty
+# number is sized for a take that never happens. Re-derive when the observed
+# rate has moved this far from the one the timing was built at.
+_RETIME_RATIO = 1.4
+
+
+def derive_min_frames(fps: float) -> int:
+    """The shortest take worth classifying at this frame rate."""
+    scaled = round(MIN_FRAMES_SECONDS * max(fps, 0.1))
+    return int(min(MIN_FRAMES_CEILING, max(MIN_FRAMES_FLOOR, scaled)))
 
 
 @dataclass(frozen=True)
@@ -266,6 +307,7 @@ class RecognitionPipeline:
         max_reopen_attempts: int | None = None,
         on_pause=None,
         view=None,
+        auto_min_frames: bool = True,
     ):
         self._recogniser = recogniser
         self._source_factory = source_factory
@@ -277,6 +319,9 @@ class RecognitionPipeline:
         # the retained take-state slot doesn't outlive the take it describes.
         self._on_pause = on_pause
         self._warmup_frames = max(1, warmup_frames)
+        # False when the operator pinned --min-frames, so a deliberate choice
+        # is never silently overwritten by the derived one.
+        self._auto_min_frames = auto_min_frames
         self._classifier_name = classifier_name
         self._classifier_sha256 = classifier_sha256
 
@@ -289,6 +334,7 @@ class RecognitionPipeline:
         self._extractor = None
         self._fps = FpsMeter()
         self._timing: TakeTiming | None = None
+        self._timing_fps = 0.0  # the rate _timing was derived against
         self._auto: AutoTake | None = None
         self._tracker: TrackingDebouncer | None = None
         self._take_state: str | None = None
@@ -531,6 +577,8 @@ class RecognitionPipeline:
             if self._frames_seen < self._warmup_frames:
                 return
             self._arm_segmenter()
+        else:
+            self._retime_if_rate_moved()
 
         self._emit_tracking(check_tracking(raw, self.dominant))
         self._disarm_if_absent()
@@ -594,9 +642,43 @@ class RecognitionPipeline:
                 self._take_state = None
             self._absent_disarmed = True
 
+    def _retime_if_rate_moved(self) -> None:
+        """Re-size AutoTake when the observed rate stops matching the assumed one.
+
+        Never mid-take: the thresholds a take opened under have to be the ones
+        it closes under, or its shape means nothing. Re-arming does drop the
+        pre-roll window, which costs the next take its leading rest frames; it
+        refills within a second and that is cheaper than running a whole
+        session against thresholds meant for an empty room.
+        """
+        fps = self._fps.fps
+        if not fps or not self._timing_fps:
+            return
+        if max(fps / self._timing_fps, self._timing_fps / fps) < _RETIME_RATIO:
+            return
+        with self._lock:
+            if self._auto is not None and self._auto.state == "recording":
+                return
+            previous = self._timing_fps
+            self._arm_segmenter()
+            self._take_state = None
+        log.info(
+            "re-derived take timing: %.2f fps -> %.2f fps, %s, min_frames=%d",
+            previous,
+            fps,
+            self._timing.as_dict(),
+            self._recogniser.min_frames,
+        )
+
     def _arm_segmenter(self) -> None:
-        """Size AutoTake against the rate this machine actually achieved."""
+        """Size AutoTake, and the clip floor, against the rate actually achieved."""
+        self._timing_fps = self._fps.fps
         self._timing = derive_timing(self._fps.fps)
+        # Mutable by design (the same way `threshold` is): the recogniser holds
+        # the floor, but only the capture loop knows the rate it has to hold it
+        # against. Left alone if the operator pinned a value on the command line.
+        if self._auto_min_frames:
+            self._recogniser.min_frames = derive_min_frames(self._fps.fps)
         self._auto = AutoTake(
             dominant=self.dominant,
             pre_roll=self._timing.pre_roll,

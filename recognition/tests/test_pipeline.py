@@ -13,12 +13,16 @@ import numpy as np
 from islkit.features import RawFrame
 from islkit.infer import ClipTooShort, Prediction, check_tracking
 from recognition.pipeline import (
+    DROPOUT_FLOOR,
+    MIN_FRAMES_CEILING,
+    MIN_FRAMES_FLOOR,
     REFERENCE_FPS,
     CameraUnavailable,
     FakeFrameSource,
     FpsMeter,
     RecognitionPipeline,
     TrackingDebouncer,
+    derive_min_frames,
     derive_timing,
 )
 
@@ -57,8 +61,36 @@ def test_a_slow_board_gets_proportionally_smaller_counts():
     a literal max_frames=400 lets a stationary signer record for 133 seconds."""
     timing = derive_timing(3.0)
     assert timing.pre_roll == 3  # round(12 * 0.24)
-    assert timing.rest_to_close == 2  # round(8 * 0.24)
     assert timing.max_frames == 96  # round(400 * 0.24)
+
+
+def test_rest_to_close_does_not_scale_below_the_dropout_floor():
+    """The one count that must NOT shrink with the frame rate.
+
+    AutoTake reads an untracked hand as rest, so a run of dropped frames that
+    reaches rest_to_close ends the take. Scaling 8 frames down by rate gives 2
+    at the board's ~3 fps, and dropout runs measured on the board are 1-5 frames
+    long — so 85.7% of dropouts closed a take mid-sign and 32% of takes came
+    back too_short. Dropout length is a frame count that does not shrink with
+    the rate, so this floor does not either.
+    """
+    assert derive_timing(3.0).rest_to_close == DROPOUT_FLOOR
+    assert derive_timing(0.5).rest_to_close == DROPOUT_FLOOR
+    # Inert where the constants were tuned: 8 was already above the floor.
+    assert derive_timing(REFERENCE_FPS).rest_to_close == 8
+
+
+def test_min_frames_follows_the_rate_between_its_bounds():
+    """A fixed 8 is 2.5 s at 3 fps — longer than many real signs.
+
+    Bounded at both ends on purpose: never above the hand-tuned 8, and never
+    below 4, where there is too little trajectory left for encode_clip to
+    resample honestly.
+    """
+    assert derive_min_frames(REFERENCE_FPS) == MIN_FRAMES_CEILING
+    assert derive_min_frames(3.0) == MIN_FRAMES_FLOOR
+    assert derive_min_frames(0.1) == MIN_FRAMES_FLOOR
+    assert MIN_FRAMES_FLOOR <= derive_min_frames(5.0) <= MIN_FRAMES_CEILING
 
 
 def test_run_lengths_never_fall_below_two_frames():
@@ -68,7 +100,7 @@ def test_run_lengths_never_fall_below_two_frames():
     timing = derive_timing(0.5)
     assert timing.rest_to_arm >= 2
     assert timing.raised_to_start >= 2
-    assert timing.rest_to_close >= 2
+    assert timing.rest_to_close >= DROPOUT_FLOOR
     assert timing.pre_roll >= 1
     assert timing.max_frames >= 30
 
@@ -853,3 +885,96 @@ def test_an_unexpected_exception_faults_camera_lost_and_does_not_propagate():
     fault = next(e for e in events if e["e"] == "fault")
     assert fault["code"] == "camera_lost"
     assert "graph is unwell" in fault["msg"]
+
+
+class _FixedFps:
+    """A stand-in for FpsMeter whose rate can be dictated.
+
+    FpsMeter derives `fps` from wall-clock ticks, so a test that wants to say
+    "the board is now running at 3 fps" cannot use the real one without
+    sleeping. Only `fps` and `tick` are exercised on this path.
+    """
+
+    def __init__(self, fps):
+        self.fps = fps
+
+    def tick(self, now=None):
+        pass
+
+
+def _armed_pipeline(fps_at_arming):
+    """A pipeline past warmup, with its timing derived at a chosen rate."""
+    pipeline = RecognitionPipeline(
+        recogniser=FakeRecogniser(),
+        source_factory=lambda: FakeFrameSource(n_frames=1),
+        on_event=lambda e: None,
+        extractor_factory=lambda: ScriptedExtractor([]),
+        warmup_frames=1,
+        start_active=True,
+        max_reopen_attempts=1,
+        reopen_backoff=(0.0,),
+    )
+    pipeline._fps = _FixedFps(fps_at_arming)
+    pipeline._arm_segmenter()
+    return pipeline
+
+
+def test_timing_is_re_derived_when_the_observed_rate_moves():
+    """Warmup usually measures the room, not the signer.
+
+    MediaPipe skips both hand models when it sees no hands, so an empty room
+    runs at ~11 fps on the board and a signer at ~3. Timing derived at 11 and
+    never revisited is sized for a take nobody makes.
+    """
+    pipeline = _armed_pipeline(11.0)
+    fast = pipeline._timing
+
+    pipeline._fps = _FixedFps(3.0)  # someone stepped into frame
+    pipeline._retime_if_rate_moved()
+
+    assert pipeline._timing != fast
+    assert pipeline._timing.pre_roll < fast.pre_roll
+    assert pipeline._timing_fps == 3.0
+
+
+def test_timing_is_left_alone_while_a_take_is_recording():
+    """The thresholds a take opened under must be the ones it closes under."""
+    pipeline = _armed_pipeline(11.0)
+    before = pipeline._timing
+    pipeline._auto.state = "recording"
+
+    pipeline._fps = _FixedFps(3.0)
+    pipeline._retime_if_rate_moved()
+
+    assert pipeline._timing is before
+
+
+def test_a_small_rate_wobble_does_not_re_derive():
+    """Re-arming costs the next take its pre-roll, so it needs real drift."""
+    pipeline = _armed_pipeline(4.0)
+    before = pipeline._timing
+
+    pipeline._fps = _FixedFps(4.4)
+    pipeline._retime_if_rate_moved()
+
+    assert pipeline._timing is before
+
+
+def test_a_pinned_min_frames_is_never_overwritten():
+    """--min-frames is a deliberate choice; deriving over it would be silent."""
+    recogniser = FakeRecogniser()
+    recogniser.min_frames = 8
+    pipeline = RecognitionPipeline(
+        recogniser=recogniser,
+        source_factory=lambda: FakeFrameSource(n_frames=1),
+        on_event=lambda e: None,
+        extractor_factory=lambda: ScriptedExtractor([]),
+        warmup_frames=1,
+        start_active=True,
+        max_reopen_attempts=1,
+        reopen_backoff=(0.0,),
+        auto_min_frames=False,
+    )
+    pipeline._fps = _FixedFps(3.0)
+    pipeline._arm_segmenter()
+    assert recogniser.min_frames == 8

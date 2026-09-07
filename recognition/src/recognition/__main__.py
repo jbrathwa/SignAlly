@@ -52,11 +52,13 @@ def main() -> None:
     ap.add_argument(
         "--min-frames",
         type=int,
-        default=8,
+        default=None,
         help="resampling floor, not a duration. encode_clip resamples rather "
-        "than pads, so a shorter clip would classify without complaint. At a "
-        "low board frame rate a short sign may never reach 8 — re-derive this "
-        "against the board's measured rate rather than guessing.",
+        "than pads, so a shorter clip would classify without complaint. "
+        "Derived from the measured frame rate by default, because a fixed 8 is "
+        "2.5 s at the board's ~3 fps — longer than many real signs, and it "
+        "rejected 32%% of takes as too_short on 2026-09-07. Pass a value to "
+        "pin it and the capture loop will leave it alone.",
     )
     ap.add_argument("--root", type=Path, default=Path("data/live"))
     ap.add_argument("--unlabelled-root", type=Path, default=Path("data/live_unlabelled"))
@@ -106,8 +108,10 @@ def main() -> None:
             "RECOGNITION_CLASSIFIER to its location."
         )
 
+    # The derived floor replaces this as soon as a rate has been measured; the
+    # constructor still needs a starting value, and 8 is the hand-tuned one.
     recogniser = SignRecogniser(
-        args.classifier, threshold=args.threshold, min_frames=args.min_frames
+        args.classifier, threshold=args.threshold, min_frames=args.min_frames or 8
     )
     store = ClipStore(root=args.root, unlabelled_root=args.unlabelled_root, session=args.session)
     hub = EventHub()
@@ -134,6 +138,7 @@ def main() -> None:
         extractor_factory=extractor_factory,
         store=store,
         on_pause=hub.clear_take,
+        auto_min_frames=args.min_frames is None,
         start_active=args.start_active,
         classifier_name=args.classifier.name,
         classifier_sha256=sha256_of(args.classifier),
