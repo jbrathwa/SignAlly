@@ -310,14 +310,31 @@ lv_obj_t* ui_center_create(lv_obj_t *parent)
      * ---------------------------------------------------- */
     result_cont = make_state_cont(center_main_cont);
 
+    /*
+     * The sentence is the one thing on this screen, and it is read across a
+     * room, so it gets the biggest font the build already carries. 24 is free:
+     * lv_conf.h enables it for the ERROR warning glyph, so this adds no flash.
+     * 12/16/20 are compiled out -- enabling one costs a font table, so check
+     * lv_conf.h before reaching for another size.
+     *
+     * Height is LV_SIZE_CONTENT rather than a fixed 176 so the label box hugs
+     * its text. Centring a fixed-height box would leave the text sitting at the
+     * top of it, which is exactly what this screen used to do.
+     *
+     * LONG_WRAP, not LONG_DOT: dots need a fixed height to know when to bite,
+     * and a wrapped sentence reads better than a truncated one. The width stays
+     * 200 inside a 216 container, so the worst case the protocol allows -- a
+     * 120-char `cap_text` line -- wraps to about eight lines and still clears
+     * the container's 260.
+     */
     result_label = lv_label_create(result_cont);
-    lv_label_set_long_mode(result_label, LV_LABEL_LONG_DOT);
-    lv_obj_set_size(result_label, 200, 176);
+    lv_label_set_long_mode(result_label, LV_LABEL_LONG_WRAP);
+    lv_obj_set_size(result_label, 200, LV_SIZE_CONTENT);
     lv_label_set_text(result_label, "");
-    lv_obj_set_style_text_font(result_label, &lv_font_montserrat_14, LV_PART_MAIN);
+    lv_obj_set_style_text_font(result_label, &lv_font_montserrat_24, LV_PART_MAIN);
     lv_obj_set_style_text_color(result_label, UI_COLOR_TEXT_RESULT, LV_PART_MAIN);
     lv_obj_set_style_text_align(result_label, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
-    lv_obj_align(result_label, LV_ALIGN_TOP_MID, 0, 14);
+    lv_obj_align(result_label, LV_ALIGN_CENTER, 0, 0);
 
     /* ----------------------------------------------------
      * 3. STATE: ERROR -- warning icon + message, no controls
