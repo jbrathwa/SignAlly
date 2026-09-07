@@ -70,6 +70,19 @@ def main() -> None:
     )
     ap.add_argument("--model-complexity", type=int, default=1, choices=[0, 1, 2])
     ap.add_argument(
+        "--num-threads",
+        type=int,
+        default=3,
+        help="XNNPACK threads per MediaPipe inference node. MediaPipe's own "
+        "default is 1, which on this board measured 1.08 of four cores and "
+        "2.32 fps with a signer in shot — under the rate at which the model "
+        "stops working at all (2.5%% top-1 at 2 fps "
+        "against 100%% at 5). Measured against a signer, replaying one captured "
+        "burst through each setting: 1 -> 2.32 fps, 2 -> 4.01, 3 -> 5.38, "
+        "4 -> 4.07. 3 wins; 4 oversubscribes four cores and gives back most of "
+        "the gain, so more is NOT better. 0 leaves MediaPipe's graph untouched.",
+    )
+    ap.add_argument(
         "--view-port",
         type=int,
         default=0,
@@ -107,7 +120,12 @@ def main() -> None:
     def extractor_factory():
         from islkit.infer import HolisticExtractor
 
-        return HolisticExtractor(model_complexity=args.model_complexity)
+        return HolisticExtractor(
+            model_complexity=args.model_complexity,
+            # 0 means "leave the compiled graph alone", which is what None does
+            # inside HolisticExtractor.
+            num_threads=args.num_threads or None,
+        )
 
     pipeline = RecognitionPipeline(
         recogniser=recogniser,
@@ -125,6 +143,7 @@ def main() -> None:
     print(f"classifier : {args.classifier}  ({len(recogniser.label_map)} classes)")
     print(f"session    : {store.session}   ->  {args.unlabelled_root}")
     print(f"capture    : {'active' if args.start_active else 'paused'}")
+    print(f"threads    : {args.num_threads or 'mediapipe default (1)'}")
     print(f"listening  : http://{args.host}:{args.port}  /results /capture /health")
     if sink is not None:
         print(

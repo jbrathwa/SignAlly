@@ -356,6 +356,11 @@ class RecognitionPipeline:
             # and raise AttributeError instead of a clean 500.
             source = self._source
             tracker = self._tracker
+            # Read off the live extractor rather than stored from the flag, so
+            # this says what is in force rather than what was asked for. It is
+            # the difference between a board running at 2 fps and one running
+            # at 4, and it was invisible until it was published here.
+            extractor = self._extractor
             return {
                 "ok": self._fault is None,
                 "capture": self._capture,
@@ -369,6 +374,7 @@ class RecognitionPipeline:
                 "frames": self._frames_seen,
                 "source": source.describe() if source else None,
                 "autotake": self._timing.as_dict() if self._timing else None,
+                "threads": getattr(extractor, "num_threads", None),
                 "min_frames": self._recogniser.min_frames,
                 "threshold": self._recogniser.threshold,
                 "disk_free_mb": disk_free_mb,
