@@ -4,8 +4,10 @@ How the device is put together, why it is three processes and not one, and what
 happens when each piece dies.
 
 For the recognition service's own API — every route, event, field and flag —
-see [`recognition-service-api.md`](recognition-service-api.md). This document is
-about the shape of the whole thing.
+see [`recognition-service-api.md`](recognition-service-api.md). The orchestrator
+is covered in [`orchestrator.md`](orchestrator.md), and the messages it sends the
+panel in [`display-protocol.md`](display-protocol.md). This document is about the
+shape of the whole thing.
 
 ---
 

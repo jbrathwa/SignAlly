@@ -18,7 +18,7 @@ the panel firmware, the App Lab console, and the script that starts it all.
 | `mcu/uno_q_mcu_uart_test/` | Bench harness: a mock state machine that drives the panel from typed commands with no stack running. Flashing it replaces the relay, so only one of the two is on the STM32 at a time |
 | `scripts/signally-start.sh` | Start, stop and inspect all three processes on the board |
 | `phrases.json` | The gloss → English + wav table the orchestrator is keyed on. 17 glosses |
-| `docs/` | [Architecture](docs/architecture.md), the [panel](docs/panel.md), and the [recognition service API](docs/recognition-service-api.md) |
+| `docs/` | [Architecture](docs/architecture.md), the [orchestrator](docs/orchestrator.md), the [display protocol](docs/display-protocol.md), the [panel](docs/panel.md), and the [recognition service API](docs/recognition-service-api.md) |
 
 ```mermaid
 flowchart LR
@@ -147,7 +147,7 @@ Each project separately, from its own directory. `recognition/` uses its venv's
 interpreter.
 
 ```bash
-cd orchestrator && python3 -m pytest -q             # 119 passed
+cd orchestrator && PYTHONPATH=src python3 -m pytest -q   # 128 passed
 cd recognition  && .venv/bin/python -m pytest -q    # 100 passed
 ```
 
