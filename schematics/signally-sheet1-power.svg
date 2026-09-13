@@ -1,0 +1,236 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 900" width="1280" height="900">
+<style>
+  .w{stroke:#1a1a1a;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+  .box{fill:#ffffff;stroke:#1a1a1a;stroke-width:2.5}
+  .zone{fill:none;stroke:#c9c9c9;stroke-width:1.5;stroke-dasharray:7 6}
+  .lbl{font:600 13px ui-monospace,Menlo,Consolas,monospace;fill:#1a1a1a}
+  .lbl2{font:11px ui-monospace,Menlo,Consolas,monospace;fill:#333}
+  .pin{font:11px ui-monospace,Menlo,Consolas,monospace;fill:#444}
+  .val{font:600 12px ui-monospace,Menlo,Consolas,monospace;fill:#b0301a}
+  .net{font:700 12px ui-monospace,Menlo,Consolas,monospace;fill:#0b5fa5}
+  .ttl{font:700 22px -apple-system,'Segoe UI',Helvetica,sans-serif;fill:#111}
+  .sub{font:13px -apple-system,'Segoe UI',Helvetica,sans-serif;fill:#555}
+  .note{font:12px -apple-system,'Segoe UI',Helvetica,sans-serif;fill:#333}
+  .warn{font:600 12px -apple-system,'Segoe UI',Helvetica,sans-serif;fill:#b0301a}
+  .zl{font:600 11px -apple-system,'Segoe UI',Helvetica,sans-serif;fill:#999;letter-spacing:1px}
+</style>
+<rect width="1280" height="900" fill="#ffffff"/>
+<text class="ttl" x="40" y="44">SignAlly — Sheet 1/3 : Power Distribution Module</text>
+<text class="sub" x="40" y="68">3S1P 18650 pack → BMS → fused dual rail (VIN passthrough + regulated 5 V) · perfboard 5×7 cm</text>
+<line class="w" x1="40" y1="82" x2="1240" y2="82" stroke-width="1.5"/>
+<!-- ================= ZONES ================= -->
+<rect class="zone" x="50" y="110" width="650" height="290"/>
+<text class="zl" x="62" y="128">PACK + PROTECTION</text>
+<rect class="zone" x="720" y="110" width="520" height="180"/>
+<text class="zl" x="732" y="128">VIN PASSTHROUGH</text>
+<rect class="zone" x="720" y="250" width="520" height="150"/>
+<text class="zl" x="732" y="268">5 V REGULATION</text>
+<rect class="zone" x="180" y="530" width="1060" height="170"/>
+<text class="zl" x="192" y="548">5 V DISTRIBUTION</text>
+<rect class="zone" x="120" y="700" width="620" height="150"/>
+<text class="zl" x="132" y="718">BATTERY SENSE (PLANNED)</text>
+<!-- ================= BATTERY PACK BT1 ================= -->
+<rect class="box" x="70" y="150" width="140" height="200"/>
+<line class="w" x1="70" y1="200" x2="210" y2="200" stroke-width="1.2" stroke-dasharray="4 4"/>
+<line class="w" x1="70" y1="250" x2="210" y2="250" stroke-width="1.2" stroke-dasharray="4 4"/>
+<line class="w" x1="70" y1="300" x2="210" y2="300" stroke-width="1.2" stroke-dasharray="4 4"/>
+<text class="lbl" x="82" y="172">BT1</text>
+<text class="lbl2" x="82" y="222">CELL 3</text>
+<text class="lbl2" x="82" y="272">CELL 2</text>
+<text class="lbl2" x="82" y="322">CELL 1</text>
+<text class="lbl2" x="70" y="368">3S1P 18650</text>
+<text class="val" x="70" y="384">11.1 V nom / 12.6 V full</text>
+<!-- pack taps to BMS -->
+<path class="w" d="M210,180 H310"/>
+<path class="w" d="M210,230 H310"/>
+<path class="w" d="M210,280 H310"/>
+<path class="w" d="M210,330 H310"/>
+<text class="pin" x="222" y="174">B+</text>
+<text class="pin" x="222" y="224">B2</text>
+<text class="pin" x="222" y="274">B1</text>
+<text class="pin" x="222" y="324">B−</text>
+<!-- ================= BMS U1 ================= -->
+<rect class="box" x="310" y="150" width="170" height="210"/>
+<text class="lbl" x="326" y="176">U1  3S BMS</text>
+<text class="lbl2" x="326" y="196">10 A, 12.6 V</text>
+<text class="lbl2" x="326" y="214">balance +</text>
+<text class="lbl2" x="326" y="230">over/under-V</text>
+<text class="lbl2" x="326" y="246">+ short circuit</text>
+<text class="pin" x="452" y="194">P+</text>
+<text class="pin" x="452" y="344">P−</text>
+<path class="w" d="M480,200 H520"/>
+<path class="w" d="M480,340 H545"/>
+<!-- P- to ground -->
+<path class="w" d="M545,340 V368"/>
+<g transform="translate(545,368)">
+<path class="w" d="M0,0 v8 M-11,8 h22 M-7,14 h14 M-3,20 h6"/>
+</g>
+<text class="pin" x="558" y="362">load return</text>
+<!-- ================= CHARGER ================= -->
+<rect class="box" x="70" y="420" width="170" height="80"/>
+<text class="lbl" x="84" y="446">J6  3S CHARGER</text>
+<text class="lbl2" x="84" y="464">4.2 V/cell, USB-C</text>
+<text class="lbl2" x="84" y="482">12.6 V / 15 W</text>
+<path class="w" d="M240,440 H272 V180" stroke-dasharray="6 5"/>
+<path class="w" d="M240,478 H292 V330" stroke-dasharray="6 5"/>
+<circle class="dot" cx="272" cy="180" r="4" fill="#1a1a1a"/>
+<circle class="dot" cx="292" cy="330" r="4" fill="#1a1a1a"/>
+<text class="warn" x="70" y="520">⚠ VERIFY 12.6 V open-circuit before connecting</text>
+<!-- ================= FUSE F1 ================= -->
+<rect class="box" x="520" y="188" width="70" height="24" rx="3"/>
+<path class="w" d="M528,200 q9,-9 18,0 q9,9 18,0 q9,-9 18,0"/>
+<text class="lbl" x="518" y="178">F1</text>
+<text class="val" x="518" y="236">5 A fast-blow</text>
+<text class="lbl2" x="518" y="252">ATO blade, ≥16 V</text>
+<!-- ================= SWITCH SW1 ================= -->
+<path class="w" d="M590,200 H628"/>
+<circle cx="632" cy="200" r="4" fill="#1a1a1a"/>
+<path class="w" d="M634,198 L688,176"/>
+<circle cx="692" cy="200" r="4" fill="#1a1a1a"/>
+<path class="w" d="M696,200 H740"/>
+<text class="lbl" x="630" y="164">SW1</text>
+<text class="lbl2" x="612" y="270">SPST master</text>
+<!-- ================= VBAT BUS ================= -->
+<path class="w" d="M740,200 V760" stroke-width="2.6"/>
+<circle cx="740" cy="200" r="4.5" fill="#1a1a1a"/>
+<text class="net" x="752" y="182">VBAT  9.0 – 12.6 V</text>
+<!-- VBAT -> J1 UNO Q VIN -->
+<path class="w" d="M740,200 H1090"/>
+<rect class="box" x="1090" y="160" width="150" height="80"/>
+<text class="lbl" x="1102" y="186">J1 → UNO Q</text>
+<text class="lbl2" x="1102" y="204">XT30 / screw</text>
+<text class="pin" x="1102" y="222">VIN · GND</text>
+<path class="w" d="M1090,218 H1062 V252"/>
+<g transform="translate(1062,252)">
+<path class="w" d="M0,0 v8 M-11,8 h22 M-7,14 h14 M-3,20 h6"/>
+</g>
+<text class="val" x="790" y="226">direct passthrough — no buck needed</text>
+<!-- ================= C1 ================= -->
+<circle cx="740" cy="330" r="4.5" fill="#1a1a1a"/>
+<path class="w" d="M740,330 H900"/>
+<path class="w" d="M800,330 V352 M784,352 H816 M784,366 q16,11 32,0 M800,372 V396"/>
+<text class="lbl" x="778" y="344">+</text>
+<text class="lbl" x="744" y="450">C1</text>
+<text class="val" x="778" y="450">47 µF 25 V</text>
+<g transform="translate(800,396)">
+<path class="w" d="M0,0 v8 M-11,8 h22 M-7,14 h14 M-3,20 h6"/>
+</g>
+<circle cx="800" cy="330" r="4.5" fill="#1a1a1a"/>
+<!-- ================= BEC U2 ================= -->
+<rect class="box" x="900" y="290" width="180" height="110"/>
+<text class="lbl" x="914" y="318">U2  BEC BUCK</text>
+<text class="lbl2" x="914" y="338">fixed 5 V / 3 A</text>
+<text class="lbl2" x="914" y="356">non-adjustable</text>
+<text class="lbl2" x="914" y="374">no trim pot, so</text>
+<text class="lbl2" x="914" y="390">cannot be mis-set</text>
+<text class="pin" x="856" y="326">IN+</text>
+<text class="pin" x="856" y="376">IN−</text>
+<text class="pin" x="1086" y="326">OUT+</text>
+<text class="pin" x="1086" y="376">OUT−</text>
+<path class="w" d="M900,370 H874 V404"/>
+<g transform="translate(874,404)">
+<path class="w" d="M0,0 v8 M-11,8 h22 M-7,14 h14 M-3,20 h6"/>
+</g>
+<path class="w" d="M1080,370 H1122 V404"/>
+<g transform="translate(1122,404)">
+<path class="w" d="M0,0 v8 M-11,8 h22 M-7,14 h14 M-3,20 h6"/>
+</g>
+<!-- OUT+ to 5V rail -->
+<path class="w" d="M1080,320 H1190 V580" stroke-width="2.6"/>
+<!-- ================= 5V RAIL ================= -->
+<path class="w" d="M1190,580 H200" stroke-width="2.6"/>
+<text class="net" x="206" y="570">+5 V RAIL</text>
+<text class="val" x="300" y="570">budget ≈ 750 mA typ / 1.35 A peak</text>
+<!-- C2 -->
+<circle cx="1140" cy="580" r="4.5" fill="#1a1a1a"/>
+<path class="w" d="M1140,580 V602 M1124,602 H1156 M1124,616 q16,11 32,0 M1140,622 V646"/>
+<text class="lbl" x="1162" y="602">C2</text>
+<text class="val" x="1162" y="620">220 µF 10 V</text>
+<g transform="translate(1140,646)">
+<path class="w" d="M0,0 v8 M-11,8 h22 M-7,14 h14 M-3,20 h6"/>
+</g>
+<!-- LED + R3 -->
+<circle cx="1020" cy="580" r="4.5" fill="#1a1a1a"/>
+<path class="w" d="M1020,580 v10 l-9,5 l18,10 l-18,10 l18,10 l-9,5 v10"/>
+<text class="lbl" x="1040" y="608">R3</text>
+<text class="val" x="1040" y="626">510 Ω</text>
+<path class="w" d="M1020,640 V654 M1004,678 L1036,678 L1020,654 Z M1004,684 H1036 M1020,684 V700"/>
+<path class="w" d="M1040,656 l10,-8 M1044,668 l10,-8" stroke-width="1.4"/>
+<text class="lbl" x="1044" y="672">LED1</text>
+<text class="lbl2" x="1044" y="690">power on</text>
+<g transform="translate(1020,700)">
+<path class="w" d="M0,0 v8 M-11,8 h22 M-7,14 h14 M-3,20 h6"/>
+</g>
+<!-- PH2.0 output connectors -->
+<g>
+<circle cx="280" cy="580" r="4.5" fill="#1a1a1a"/>
+<path class="w" d="M280,580 V612"/>
+<rect class="box" x="215" y="612" width="150" height="60"/>
+<text class="lbl" x="227" y="634">J3  PH2.0</text>
+<text class="lbl2" x="227" y="652">CrowPanel 2.8"</text>
+<text class="val" x="227" y="668">~150 / 250 mA pk</text>
+<path class="w" d="M340,672 V696"/>
+<g transform="translate(340,696)">
+<path class="w" d="M0,0 v8 M-11,8 h22 M-7,14 h14 M-3,20 h6"/>
+</g>
+</g>
+<g>
+<circle cx="490" cy="580" r="4.5" fill="#1a1a1a"/>
+<path class="w" d="M490,580 V612"/>
+<rect class="box" x="425" y="612" width="150" height="60"/>
+<text class="lbl" x="437" y="634">J4  PH2.0</text>
+<text class="lbl2" x="437" y="652">audio amp (planned)</text>
+<text class="val" x="437" y="668">~200 / 500 mA pk</text>
+<path class="w" d="M550,672 V696"/>
+<g transform="translate(550,696)">
+<path class="w" d="M0,0 v8 M-11,8 h22 M-7,14 h14 M-3,20 h6"/>
+</g>
+</g>
+<g>
+<circle cx="880" cy="580" r="4.5" fill="#1a1a1a"/>
+<path class="w" d="M880,580 V612"/>
+<rect class="box" x="815" y="612" width="150" height="60"/>
+<text class="lbl" x="827" y="634">J5  PH2.0</text>
+<text class="lbl2" x="827" y="652">USB hub (opt.)</text>
+<text class="val" x="827" y="668">~400 / 600 mA pk</text>
+<path class="w" d="M940,672 V696"/>
+<g transform="translate(940,696)">
+<path class="w" d="M0,0 v8 M-11,8 h22 M-7,14 h14 M-3,20 h6"/>
+</g>
+</g>
+<!-- ================= BATTERY SENSE DIVIDER ================= -->
+<circle cx="740" cy="760" r="4.5" fill="#1a1a1a"/>
+<path class="w" d="M740,760 H660"/>
+<path class="w" d="M660,760 h-10 l-5,-9 l-10,18 l-10,-18 l-10,18 l-5,-9 h-10"/>
+<text class="lbl" x="588" y="742">R1</text>
+<text class="val" x="588" y="792">100 kΩ</text>
+<path class="w" d="M600,760 H440"/>
+<circle cx="480" cy="760" r="4.5" fill="#1a1a1a"/>
+<circle cx="400" cy="760" r="4.5" fill="#1a1a1a"/>
+<text class="net" x="440" y="742">BATT_SENSE</text>
+<path class="w" d="M480,760 v10 l-9,5 l18,10 l-18,10 l18,10 l-9,5 v10"/>
+<text class="lbl" x="500" y="792">R2</text>
+<text class="val" x="500" y="810">20 kΩ</text>
+<g transform="translate(480,820)">
+<path class="w" d="M0,0 v8 M-11,8 h22 M-7,14 h14 M-3,20 h6"/>
+</g>
+<path class="w" d="M400,760 V782 M384,782 H416 M384,796 H416 M400,796 V818"/>
+<text class="lbl" x="330" y="792">C3</text>
+<text class="val" x="330" y="810">1 µF</text>
+<g transform="translate(400,818)">
+<path class="w" d="M0,0 v8 M-11,8 h22 M-7,14 h14 M-3,20 h6"/>
+</g>
+<path class="w" d="M440,760 H300"/>
+<rect class="box" x="150" y="735" width="150" height="52"/>
+<text class="lbl" x="162" y="757">J2 → UNO Q</text>
+<text class="lbl2" x="162" y="775">A2  (3.3 V ADC)</text>
+<text class="val" x="150" y="842">12.6 V → 2.10 V (×6.00)</text>
+<!-- ================= NOTES ================= -->
+<rect class="box" x="790" y="730" width="450" height="130" rx="4" fill="#fcfcfc"/>
+<text class="lbl" x="804" y="752">NOTES</text>
+<text class="note" x="804" y="772">1.  All GND symbols are ONE net — star-tied at BMS P−.</text>
+<text class="note" x="804" y="790">2.  Wire crossings without a dot are NOT connected.</text>
+<text class="note" x="804" y="808">3.  BMS wiring order: B− → balance taps → B+.</text>
+<text class="note" x="804" y="826">4.  C2 is 10 V rated — must never sit on the VBAT rail.</text>
+<text class="note" x="804" y="844">5.  Add 0.1 µF ceramic beside C1 and C2 for HF decoupling.</text>
+</svg>

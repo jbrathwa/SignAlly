@@ -1,0 +1,166 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 830" width="1280" height="830">
+<style>
+  .w{stroke:#1a1a1a;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+  .box{fill:#ffffff;stroke:#1a1a1a;stroke-width:2.5}
+  .ref{fill:#f4f7fa;stroke:#0b5fa5;stroke-width:2;stroke-dasharray:6 5}
+  .lbl{font:600 13px ui-monospace,Menlo,Consolas,monospace;fill:#1a1a1a}
+  .lbl2{font:11px ui-monospace,Menlo,Consolas,monospace;fill:#333}
+  .pin{font:11px ui-monospace,Menlo,Consolas,monospace;fill:#444}
+  .val{font:600 12px ui-monospace,Menlo,Consolas,monospace;fill:#b0301a}
+  .net{font:700 12px ui-monospace,Menlo,Consolas,monospace;fill:#0b5fa5}
+  .ttl{font:700 22px -apple-system,'Segoe UI',Helvetica,sans-serif;fill:#111}
+  .sub{font:13px -apple-system,'Segoe UI',Helvetica,sans-serif;fill:#555}
+  .note{font:12px -apple-system,'Segoe UI',Helvetica,sans-serif;fill:#333}
+  .warn{font:600 12px -apple-system,'Segoe UI',Helvetica,sans-serif;fill:#b0301a}
+  .hd{font:700 12px -apple-system,'Segoe UI',Helvetica,sans-serif;fill:#111}
+</style>
+<rect width="1280" height="830" fill="#ffffff"/>
+<text class="ttl" x="40" y="44">SignAlly — Sheet 3/3 : Push Buttons &amp; Audio Output</text>
+<text class="sub" x="40" y="68">Buttons on the CrowPanel GPIO_D connector (built) · audio amplifier with low-side MOSFET mute (planned, not yet built)</text>
+<line class="w" x1="40" y1="82" x2="1240" y2="82" stroke-width="1.5"/>
+<!-- ===== CrowPanel ===== -->
+<rect class="box" x="80" y="170" width="300" height="270"/>
+<text class="lbl" x="96" y="198">U4   CROWPANEL 2.8"</text>
+<text class="lbl2" x="96" y="218">ESP32 · GPIO_D connector</text>
+<line class="w" x1="96" y1="232" x2="364" y2="232" stroke-width="1.2" stroke-dasharray="4 4"/>
+<text class="lbl2" x="96" y="256">3.3 V logic</text>
+<text class="lbl2" x="96" y="274">ESP32 internal pull-ups,</text>
+<text class="lbl2" x="96" y="292">press reads LOW</text>
+<text class="lbl2" x="96" y="326">Presses are sent to the</text>
+<text class="lbl2" x="96" y="344">orchestrator as protocol</text>
+<text class="lbl2" x="96" y="362">button messages over</text>
+<text class="lbl2" x="96" y="380">the UART (Sheet 2).</text>
+<text class="pin" x="340" y="254">IO32</text>
+<text class="pin" x="340" y="384">IO25</text>
+<rect class="ref" x="200" y="474" width="180" height="52" rx="4"/>
+<text class="net" x="210" y="494">UNO Q D3</text>
+<text class="lbl2" x="210" y="512">planned, no firmware</text>
+<text class="net" x="388" y="490">AMP_EN</text>
+<!-- ======== BTN1 : IO32 ======== -->
+<path class="w" d="M380,260 H530"/>
+<circle cx="450" cy="260" r="4.5" fill="#1a1a1a"/>
+<text class="net" x="392" y="248">START_STOP</text>
+<!-- debounce cap C4 -->
+<path class="w" d="M450,260 V286 M434,286 H466 M434,298 H466 M450,298 V322"/>
+<text class="lbl" x="474" y="290">C4</text>
+<text class="val" x="474" y="308">100 nF opt.</text>
+<g transform="translate(450,322)">
+<path class="w" d="M0,0 v8 M-11,8 h22 M-7,14 h14 M-3,20 h6"/>
+</g>
+<!-- switch SW2 -->
+<path class="w" d="M530,260 V238"/>
+<path class="w" d="M596,260 V238"/>
+<path class="w" d="M518,230 H608" stroke-width="2.4"/>
+<path class="w" d="M563,230 V210 M545,210 H581" stroke-width="2.4"/>
+<text class="lbl" x="620" y="220">SW2</text>
+<text class="lbl2" x="620" y="238">momentary NO</text>
+<text class="val" x="620" y="256">6×6 tactile</text>
+<path class="w" d="M596,260 H700 V318"/>
+<g transform="translate(700,318)">
+<path class="w" d="M0,0 v8 M-11,8 h22 M-7,14 h14 M-3,20 h6"/>
+</g>
+<!-- ======== BTN2 : IO25 ======== -->
+<path class="w" d="M380,390 H530"/>
+<circle cx="450" cy="390" r="4.5" fill="#1a1a1a"/>
+<text class="net" x="392" y="378">SPK_MUTE</text>
+<path class="w" d="M450,390 V416 M434,416 H466 M434,428 H466 M450,428 V452"/>
+<text class="lbl" x="474" y="420">C5</text>
+<text class="val" x="474" y="438">100 nF opt.</text>
+<g transform="translate(450,452)">
+<path class="w" d="M0,0 v8 M-11,8 h22 M-7,14 h14 M-3,20 h6"/>
+</g>
+<path class="w" d="M530,390 V368"/>
+<path class="w" d="M596,390 V368"/>
+<path class="w" d="M518,360 H608" stroke-width="2.4"/>
+<path class="w" d="M563,360 V340 M545,340 H581" stroke-width="2.4"/>
+<text class="lbl" x="620" y="350">SW3</text>
+<text class="lbl2" x="620" y="368">momentary NO</text>
+<text class="val" x="620" y="386">speaker mute</text>
+<path class="w" d="M596,390 H700 V448"/>
+<g transform="translate(700,448)">
+<path class="w" d="M0,0 v8 M-11,8 h22 M-7,14 h14 M-3,20 h6"/>
+</g>
+<!-- ======== Q1 MOSFET ======== -->
+<path class="w" d="M380,500 H420"/>
+<path class="w" d="M420,500 h10 l5,-9 l10,18 l10,-18 l10,18 l5,-9 h10"/>
+<text class="lbl" x="396" y="540">R4</text>
+<text class="val" x="432" y="540">1 kΩ</text>
+<path class="w" d="M480,500 H578"/>
+<circle cx="520" cy="500" r="4.5" fill="#1a1a1a"/>
+<!-- gate plate + channel -->
+<path class="w" d="M578,478 V522" stroke-width="2.4"/>
+<path class="w" d="M588,478 v13 M588,494 v12 M588,509 v13" stroke-width="2.4"/>
+<path class="w" d="M588,484 H616 V440"/>
+<path class="w" d="M588,516 H616 V566"/>
+<path class="w" d="M616,484 V516"/>
+<path class="w" d="M598,500 H616 M602,500 l12,-6 v12 Z" fill="#1a1a1a"/>
+<text class="lbl" x="626" y="506">Q1</text>
+<text class="val" x="626" y="524">AO3400 / 2N7000</text>
+<text class="lbl2" x="626" y="542">N-ch logic level</text>
+<g transform="translate(616,566)">
+<path class="w" d="M0,0 v8 M-11,8 h22 M-7,14 h14 M-3,20 h6"/>
+</g>
+<!-- R5 gate pulldown -->
+<path class="w" d="M520,500 V524"/>
+<path class="w" d="M520,524 v10 l-9,5 l18,10 l-18,10 l18,10 l-9,5 v10"/>
+<path class="w" d="M520,584 H616"/>
+<text class="lbl" x="450" y="560">R5</text>
+<text class="val" x="436" y="578">100 kΩ</text>
+<circle cx="616" cy="584" r="4.5" fill="#1a1a1a"/>
+<!-- ======== 5V ref ======== -->
+<rect class="ref" x="760" y="108" width="220" height="58" rx="4"/>
+<text class="net" x="772" y="130">J4 — from Sheet 1</text>
+<text class="lbl2" x="772" y="150">+5 V rail, PH2.0</text>
+<path class="w" d="M870,166 V200"/>
+<text class="pin" x="880" y="188">VCC</text>
+<!-- ======== audio source ref ======== -->
+<rect class="ref" x="500" y="100" width="215" height="86" rx="4"/>
+<text class="net" x="512" y="122">AUDIO SOURCE (planned)</text>
+<text class="lbl2" x="512" y="142">pre-rendered .wav from</text>
+<text class="lbl2" x="512" y="160">the orchestrator; the</text>
+<text class="lbl2" x="512" y="178">board has no output yet</text>
+<path class="w" d="M607,186 V196 H1000 V200"/>
+<text class="pin" x="1008" y="192">IN</text>
+<!-- ======== AMP ======== -->
+<rect class="box" x="800" y="200" width="280" height="220"/>
+<text class="lbl" x="816" y="228">U5   AUDIO AMP (PLANNED)</text>
+<text class="lbl2" x="816" y="250">PAM8403 / PAM8302 /</text>
+<text class="lbl2" x="816" y="268">MAX98357A</text>
+<line class="w" x1="816" y1="284" x2="1064" y2="284" stroke-width="1.2" stroke-dasharray="4 4"/>
+<text class="warn" x="816" y="306">ALL THREE ARE BTL</text>
+<text class="lbl2" x="816" y="326">Neither speaker terminal</text>
+<text class="lbl2" x="816" y="344">may connect to GND.</text>
+<text class="lbl2" x="816" y="368">(LM386 is the only amp</text>
+<text class="lbl2" x="816" y="386">where SPK− goes to GND —</text>
+<text class="lbl2" x="816" y="404">do not substitute blindly.)</text>
+<text class="pin" x="1032" y="252">OUT+</text>
+<text class="pin" x="1036" y="342">OUT−</text>
+<!-- amp GND to Q1 drain -->
+<path class="w" d="M870,420 V440 H616"/>
+<text class="pin" x="880" y="438">GND</text>
+<text class="net" x="660" y="432">AMP_GND  (switched)</text>
+<!-- ======== SPEAKER ======== -->
+<path class="w" d="M1080,258 H1128 V284 H1152"/>
+<path class="w" d="M1080,348 H1144 V308 H1152"/>
+<rect class="box" x="1152" y="274" width="20" height="44"/>
+<path class="w" d="M1172,274 L1212,254 V338 L1172,318 Z" fill="#ffffff"/>
+<text class="lbl" x="1150" y="360">LS1</text>
+<text class="lbl2" x="1120" y="378">4 Ω 2 W / 8 Ω</text>
+<!-- ======== NOTES ======== -->
+<rect class="box" x="768" y="470" width="472" height="330" rx="4" fill="#fcfcfc"/>
+<text class="lbl" x="782" y="494">NOTES</text>
+<text class="note" x="782" y="518">1.  Buttons are on the CrowPanel, not the UNO Q: IO32 = Start/Stop,</text>
+<text class="note" x="782" y="536">     IO25 = speaker mute. Button-to-GND, ESP32 internal pull-up.</text>
+<text class="note" x="782" y="554">     These are the only two free GPIOs on the CrowPanel.</text>
+<text class="note" x="782" y="578">2.  Debounce is in firmware: 250 ms, press accepted instantly.</text>
+<text class="note" x="782" y="596">     C4 / C5 are optional RC filters, not required by the firmware.</text>
+<text class="note" x="782" y="620">3.  Mute is reported upstream with its new state; the orchestrator</text>
+<text class="note" x="782" y="638">     skips audio playback while it is on.</text>
+
+<text class="note" x="782" y="662">4.  PLANNED: U5, Q1, R4, R5, LS1. The board has no audio output yet.</text>
+<text class="note" x="782" y="680">     Q1 would switch the amp's GROUND from UNO Q D3, killing</text>
+<text class="note" x="782" y="698">     quiescent draw and muting in hardware.</text>
+<text class="note" x="782" y="722">5.  R5 would hold the gate low through MCU reset, so the amp</text>
+<text class="note" x="782" y="740">     boots muted instead of popping the speaker.</text>
+<text class="warn" x="782" y="782">6.  All GND symbols on Sheets 1–3 are one common net.</text>
+</svg>

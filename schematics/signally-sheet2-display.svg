@@ -1,0 +1,114 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 860" width="1280" height="860">
+<style>
+  .w{stroke:#1a1a1a;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+  .box{fill:#ffffff;stroke:#1a1a1a;stroke-width:2.5}
+  .ref{fill:#f4f7fa;stroke:#0b5fa5;stroke-width:2;stroke-dasharray:6 5}
+  .lbl{font:600 13px ui-monospace,Menlo,Consolas,monospace;fill:#1a1a1a}
+  .lbl2{font:11px ui-monospace,Menlo,Consolas,monospace;fill:#333}
+  .pin{font:11px ui-monospace,Menlo,Consolas,monospace;fill:#444}
+  .val{font:600 12px ui-monospace,Menlo,Consolas,monospace;fill:#b0301a}
+  .net{font:700 12px ui-monospace,Menlo,Consolas,monospace;fill:#0b5fa5}
+  .ttl{font:700 22px -apple-system,'Segoe UI',Helvetica,sans-serif;fill:#111}
+  .sub{font:13px -apple-system,'Segoe UI',Helvetica,sans-serif;fill:#555}
+  .note{font:12px -apple-system,'Segoe UI',Helvetica,sans-serif;fill:#333}
+  .warn{font:600 12px -apple-system,'Segoe UI',Helvetica,sans-serif;fill:#b0301a}
+  .hd{font:700 12px -apple-system,'Segoe UI',Helvetica,sans-serif;fill:#111}
+</style>
+<rect width="1280" height="860" fill="#ffffff"/>
+<text class="ttl" x="40" y="44">SignAlly — Sheet 2/3 : UNO Q ↔ CrowPanel Display</text>
+<text class="sub" x="40" y="68">STM32U585 UART1 ↔ Elecrow CrowPanel 2.8" ESP32 HMI · display powered from the 5 V rail, not from the UNO Q</text>
+<line class="w" x1="40" y1="82" x2="1240" y2="82" stroke-width="1.5"/>
+<!-- ===== J1 reference (from sheet 1) ===== -->
+<rect class="ref" x="130" y="100" width="215" height="56" rx="4"/>
+<text class="net" x="142" y="122">J1 — from Sheet 1</text>
+<text class="lbl2" x="142" y="142">VBAT 9.0 – 12.6 V</text>
+<path class="w" d="M180,156 V200"/>
+<path class="w" d="M295,156 V200"/>
+<text class="pin" x="150" y="184">VIN</text>
+<text class="pin" x="305" y="184">GND</text>
+<!-- ===== UNO Q ===== -->
+<rect class="box" x="110" y="200" width="330" height="390"/>
+<text class="lbl" x="126" y="228">U3   ARDUINO UNO Q</text>
+<text class="lbl2" x="126" y="250">STM32U585 MCU  +  QRB2210 MPU (4 GB)</text>
+<text class="lbl2" x="126" y="268">3.3 V GPIO logic — NOT 5 V tolerant on I/O</text>
+<line class="w" x1="126" y1="282" x2="424" y2="282" stroke-width="1.2" stroke-dasharray="4 4"/>
+<text class="lbl2" x="126" y="304">MCU side  : UART relay only (Serial1)</text>
+<text class="lbl2" x="126" y="322">Linux side: uvcvideo camera, MediaPipe, TCN</text>
+<text class="lbl2" x="126" y="340">Bridge    : App Lab MCU ↔ Linux messaging</text>
+<text class="pin" x="366" y="386">D1/TX1</text>
+<text class="pin" x="366" y="441">D0/RX1</text>
+<text class="pin" x="382" y="501">GND</text>
+<text class="pin" x="376" y="556">A2 →</text>
+<path class="w" d="M440,390 H760"/>
+<path class="w" d="M440,445 H760"/>
+<path class="w" d="M440,505 H760"/>
+<path class="w" d="M440,560 H520"/>
+<text class="lbl2" x="530" y="564">battery sense (planned)</text>
+<!-- arrows -->
+<path class="w" d="M588,390 l-14,-6 v12 Z" fill="#1a1a1a"/>
+<path class="w" d="M612,445 l14,-6 v12 Z" fill="#1a1a1a"/>
+<!-- ===== CrowPanel ===== -->
+<rect class="box" x="760" y="200" width="330" height="390"/>
+<text class="lbl" x="776" y="228">U4   CROWPANEL 2.8" HMI</text>
+<text class="lbl2" x="776" y="250">Elecrow ESP32 · 240×320 · touch unused</text>
+<text class="lbl2" x="776" y="268">3.3 V logic · LVGL 8.3 firmware</text>
+<line class="w" x1="776" y1="282" x2="1074" y2="282" stroke-width="1.2" stroke-dasharray="4 4"/>
+<text class="warn" x="776" y="304">Wi-Fi and BT never enabled in firmware</text>
+<text class="lbl2" x="776" y="322">(radio TX spikes to 400–500 mA and</text>
+<text class="lbl2" x="776" y="340">injects noise into the shared 5 V rail)</text>
+<text class="lbl2" x="776" y="362">Role: shows the recognised sentence and</text>
+<text class="lbl2" x="776" y="380">status icons; carries both buttons</text>
+<text class="pin" x="686" y="382">GPIO16 RX</text>
+<text class="pin" x="772" y="441">TX GPIO17</text>
+<text class="pin" x="772" y="501">GND</text>
+<text class="lbl2" x="776" y="540">GPIO_D: IO32 Start/Stop,</text>
+<text class="lbl2" x="776" y="558">IO25 speaker mute → Sheet 3</text>
+<text class="pin" x="798" y="608">5 V</text>
+<text class="pin" x="908" y="608">GND</text>
+<!-- UART label -->
+<rect class="box" x="520" y="300" width="190" height="66" rx="4" fill="#fcfcfc"/>
+<text class="hd" x="534" y="322">UART1 LINK</text>
+<text class="lbl2" x="534" y="340">115200 8N1</text>
+<text class="lbl2" x="534" y="358">3.3 V ↔ 3.3 V, direct</text>
+<text class="net" x="452" y="382">TX → RX</text>
+<text class="net" x="452" y="437">RX ← TX</text>
+<text class="net" x="452" y="497">SIGNAL GND</text>
+<!-- ===== 5V feed with Schottky ===== -->
+<path class="w" d="M830,590 V636"/>
+<path class="w" d="M812,636 h36" stroke-width="2.4"/>
+<path class="w" d="M808,630 q6,0 4,6 M852,642 q-6,0 -4,-6" stroke-width="2"/>
+<path class="w" d="M830,636 L814,664 L846,664 Z" fill="#ffffff"/>
+<path class="w" d="M830,664 V720"/>
+<text class="lbl" x="764" y="628">D1</text>
+<text class="val" x="694" y="652">SS34 Schottky</text>
+<text class="lbl2" x="700" y="672">blocks USB-C</text>
+<text class="lbl2" x="700" y="688">backfeed</text>
+<path class="w" d="M940,590 V720"/>
+<rect class="ref" x="760" y="720" width="240" height="70" rx="4"/>
+<text class="net" x="772" y="744">J3 — from Sheet 1</text>
+<text class="lbl2" x="772" y="764">+5 V rail, PH2.0 2-pin</text>
+<text class="lbl2" x="772" y="782">5 V · GND</text>
+<!-- ===== HY2.0-4P inset ===== -->
+<rect class="box" x="1110" y="200" width="150" height="200" rx="4" fill="#fcfcfc"/>
+<text class="hd" x="1120" y="224">HY2.0-4P</text>
+<text class="note" x="1120" y="244">pin 1  VCC</text>
+<text class="note" x="1120" y="262">pin 2  GND</text>
+<text class="note" x="1120" y="280">pin 3  TX</text>
+<text class="note" x="1120" y="298">pin 4  RX</text>
+<text class="warn" x="1120" y="326">⚠ VCC may be</text>
+<text class="warn" x="1120" y="342">3.3 V or 5 V by</text>
+<text class="warn" x="1120" y="358">board revision.</text>
+<text class="note" x="1120" y="380">Probe against</text>
+<text class="note" x="1120" y="396">GND first.</text>
+<!-- ===== NOTES ===== -->
+<rect class="box" x="90" y="640" width="600" height="185" rx="4" fill="#fcfcfc"/>
+<text class="lbl" x="104" y="664">NOTES</text>
+<text class="note" x="104" y="686">1.  Both ends are 3.3 V logic — no level shifter required.</text>
+<text class="note" x="104" y="706">2.  The CrowPanel ground MUST come from the same 5 V rail ground as the UNO Q.</text>
+<text class="note" x="104" y="724">     A separately grounded display is the classic cause of UART framing errors.</text>
+<text class="warn" x="104" y="748">3.  NEVER power the CrowPanel from USB-C and the rail at the same time.</text>
+<text class="note" x="104" y="766">     Development: flash over USB-C with J3 unplugged. Enclosure: rail only.</text>
+<text class="note" x="104" y="784">     D1 makes both-connected survivable, but rail-only remains the intended mode.</text>
+<text class="note" x="104" y="804">4.  If the HY2.0 VCC pin measures 3.3 V, use the connector for TX/RX/GND only</text>
+<text class="note" x="104" y="820">     and feed 5 V separately to the board's dedicated power input.</text>
+</svg>
