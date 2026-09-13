@@ -75,7 +75,7 @@ void setup(void)
      * one line to bring touch back the moment a screen gains a touch target.
      * Note the calibration constants in include/touch_driver.h are still
      * wrong (labelled for landscape 320x240 while the panel runs portrait
-     * 240x320) and will need measuring first -- see UI_GUIDE.md.
+     * 240x320) and will need measuring first.
      */
     /* touch_driver_init(); */
 

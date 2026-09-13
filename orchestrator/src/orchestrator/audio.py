@@ -1,6 +1,6 @@
 """The audio path. Nothing in here may raise into the caller.
 
-This board currently has no reachable audio output (AUDIO-SPIKE-RESULTS.md), so
+This board currently has no reachable audio output, so
 the expected outcome on hardware today is silence with a clean log. The design
 requirement is unchanged either way: a missing file or a failing player is
 logged and skipped, and never takes the process down.
