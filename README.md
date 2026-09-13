@@ -103,8 +103,7 @@ Make the venv with `python3.12 -m venv`, not `uv venv` — a `uv venv` ships no
 
 `islkit` is the open-source landmark encoder, model and inference package.
 
-**The checkpoint is in neither repository.** It is gitignored upstream and
-was never part of `SignAlly` at all. Copy `classifier_262.pt` and its label map
+**The checkpoint is not in this repository.** Copy `classifier_262.pt` and its label map
 `labels_262.json` into the same directory — the service refuses to start without
 them, and refuses if the two disagree about the class count:
 
@@ -158,7 +157,8 @@ server.
 
 ## Known limits
 
-- **It makes no sound on the UNO Q.** The board has no reachable audio output. The path is built and tested; the
+- **It makes no sound on the UNO Q.** The board has no reachable audio output.
+  The path is built and tested; the
   wav files do not exist yet. Missing files are logged and skipped.
 - **The glosses are wrong on your own signing, and that is expected.** The head
   is still the pretrained 262-class one. Use the stream to check plumbing, never

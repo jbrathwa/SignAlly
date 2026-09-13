@@ -15,10 +15,10 @@ open-source package installed from PyPI.
 ## 1. Install
 
 Three things must be true before the service starts: Python 3.12, the dependency set, and a
-classifier checkpoint **that is not in either repository**.
+classifier checkpoint **that is not in this repository**.
 
-> ⚠️ **A fresh checkout cannot start the service.** The checkpoint is gitignored upstream and
-> was never part of `SignAlly` at all. It lives outside both repos, at `~/models/classifier_262.pt`
+> ⚠️ **A fresh checkout cannot start the service.** The checkpoint is not part of
+> `SignAlly`. It lives outside the repo, at `~/models/classifier_262.pt`
 > (2.1 MB), with its label map `labels_262.json` beside it in the same directory — the service
 > refuses to start if the two disagree about the class count. Regenerating the checkpoint instead of
 > copying it means downloading the 3.4 GB training set and retraining. Copy the files.
@@ -418,7 +418,7 @@ and each has already forced a design decision.
 
 ### Install a trimmed dependency set
 
-Not the bench's full one — `pandas`, `pyarrow` and `xgboost` are training-time only and waste scarce
+Not the full training set — `pandas`, `pyarrow` and `xgboost` are training-time only and waste scarce
 disk. Plain `islkit`, without the `[train]` extra, is all the board needs.
 
 ```bash

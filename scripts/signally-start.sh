@@ -30,9 +30,9 @@ PHRASES="${PHRASES:-$SIGNALLY_DIR/phrases.json}"
 CONSOLE_APP="${CONSOLE_APP:-$HOME/SignAlly/applab/signally-console}"
 LOG_DIR="${LOG_DIR:-$HOME/logs}"
 
-# Outside both repos on purpose. Takes are training data for the bench, and
-# neither the production repo nor the bench should silently accumulate them —
-# copying them to the bench stays an explicit step.
+# Outside the repo on purpose. Takes are training data, and the production
+# repo should not silently accumulate them — copying them into a training
+# workspace stays an explicit step.
 TAKES_DIR="${TAKES_DIR:-$HOME/takes}"
 
 # The camera index is NOT stable. Across a reboot on 2026-09-06 the working
