@@ -1,7 +1,7 @@
 """The phrase table: gloss in, English text and a wav path out.
 
-Keyed by the gloss the model emits, and the key set must equal
-the classifier's label map exactly. A gloss with no row is a recognised
+Keyed by the gloss the model emits, so the key set should match the classifier's
+label map (the labels_<N>.json beside the checkpoint). A gloss with no row is a recognised
 sign the device cannot say; core.translate turns that into `unclear` rather
 than putting a bare English token on screen as though it were a phrase.
 """

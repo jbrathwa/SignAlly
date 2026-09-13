@@ -62,7 +62,7 @@ RESOLUTION="${RESOLUTION:-640x480}"
 # MP_THREADS=0 restores MediaPipe's own default.
 MP_THREADS="${MP_THREADS:-3}"
 
-# The 6-sign head fine-tuned on the signer's own recordings (islkit
+# The 6-sign head fine-tuned on the signer's own recordings (islkit's
 # experiments/finetune.py): hello, thankyou, washroom, doctor, happy, sad.
 # labels_6.json must sit beside it. The 17-class INCLUDE-only head scored 2/24
 # on this signer, so it is not the default any more.

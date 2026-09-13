@@ -1,18 +1,18 @@
 # SignAlly
 
-A two-way ISL (Indian Sign Language) ↔ speech bridge for the Arduino UNO Q. A
-camera watches someone sign; the device says the phrase out loud and shows it on
-a panel. **This repository holds the device's production code** — the recognition
-service, the orchestrator that turns glosses into speech and display messages,
+A ISL (Indian Sign Language) -> text bridge for the Arduino UNO Q. A
+camera watches someone sign; the device shows the phrase on
+a panel. the recognition
+service, the orchestrator that turns glosses into sentance and display messages,
 the panel firmware, the App Lab console, and the script that starts it all.
-Model research lives in the separate `islkit` project.
+
 
 ## Layout
 
 | | What |
 |---|---|
 | `orchestrator/` | Device state, gloss → phrase, audio, and the display JSON protocol. Stdlib only, Python ≥3.11 |
-| `recognition/` | Camera in, glosses out over HTTP. MediaPipe + torch via `islkit`, Python 3.12 exactly |
+| `recognition/` | Camera in, glosses out over HTTP. MediaPipe + torch via [`islkit`](https://github.com/jbrathwa/islkit), Python 3.12 exactly |
 | `applab/signally-console/` | App Lab app: mirrors the protocol stream in a browser and forwards it to the panel. `sketch/` is the STM32 relay that carries lines between the Bridge and the panel's UART — it lives inside the app because App Lab flashes a sketch only from `<app>/sketch/sketch.ino` |
 | `panel/` | CrowPanel 2.8" ESP32 display firmware. PlatformIO, LVGL v8. Renders the display protocol and acks it — see [the panel doc](docs/panel.md) |
 | `mcu/uno_q_mcu_uart_test/` | Bench harness: a mock state machine that drives the panel from typed commands with no stack running. Flashing it replaces the relay, so only one of the two is on the STM32 at a time |
@@ -92,7 +92,7 @@ Three things it needs that a fresh checkout does not give you: Python 3.12,
 ```bash
 cd recognition
 python3.12 -m venv .venv
-.venv/bin/pip install -e /path/to/islkit   # islkit — a sibling checkout, not on any index
+.venv/bin/pip install islkit                       # landmark encoder, model and inference
 .venv/bin/pip install -e ".[dev]"                  # the service itself
 .venv/bin/python -m recognition --help
 .venv/bin/python -m recognition --camera 2         # needs a camera
@@ -101,11 +101,7 @@ python3.12 -m venv .venv
 Make the venv with `python3.12 -m venv`, not `uv venv` — a `uv venv` ships no
 `pip`, so the two install lines above have nothing to run.
 
-**`uv run` does not work here.** `islkit` is an editable install of a sibling
-checkout rather than a package on any index, so `uv` tries to resolve it from
-PyPI and fails with `only islkit==0.0.1 is available`. Call the venv's interpreter
-directly — `.venv/bin/python` — for every command inside `recognition/`. (`uv`
-works fine inside the `islkit` project, where `islkit` *is* the project.)
+`islkit` is the open-source landmark encoder, model and inference package.
 
 **The checkpoint is in neither repository.** It is gitignored upstream and
 was never part of `SignAlly` at all. Copy `classifier_262.pt` and its label map
@@ -116,12 +112,9 @@ them, and refuses if the two disagree about the class count:
 mkdir -p ~/models && cp /path/to/classifier_262.pt /path/to/labels_262.json ~/models/
 ```
 
-`~/models/classifier_262.pt` is the service's own default; `--classifier` or
-`$RECOGNITION_CLASSIFIER` override it. On the device, `scripts/signally-start.sh`
-passes the fine-tuned 6-sign head instead — `~/models/classifier_6.pt`, with
-`labels_6.json` beside it. On the board, `islkit` goes on as a wheel
-built on the laptop (`uv build --wheel`, then `scp`) rather than an editable
-install — the board needs no repository credentials for it. Full install, run and consume guide, board included:
+`~/models/classifier_262.pt` is the default; `--classifier` or
+`$RECOGNITION_CLASSIFIER` override it. On the board, `islkit` installs from PyPI the
+same way. Full install, run and consume guide, board included:
 [`docs/recognition-service-api.md`](docs/recognition-service-api.md).
 
 ## The whole stack on the board
@@ -152,11 +145,11 @@ been exercised on hardware since.
 ## Tests
 
 Each project separately, from its own directory. `recognition/` uses its venv's
-interpreter, for the `uv` reason above.
+interpreter.
 
 ```bash
 cd orchestrator && python3 -m pytest -q             # 119 passed
-cd recognition  && .venv/bin/python -m pytest -q    # 94 passed
+cd recognition  && .venv/bin/python -m pytest -q    # 100 passed
 ```
 
 Everything runs with no board, no camera and no sound, against the recorded
@@ -167,12 +160,11 @@ server.
 
 - **It makes no sound on the UNO Q.** The board has no reachable audio output. The path is built and tested; the
   wav files do not exist yet. Missing files are logged and skipped.
-- **Recognition covers six signs.** The start script loads `classifier_6.pt`,
-  fine-tuned on the signer's own recordings: `hello`, `thankyou`, `washroom`,
-  `doctor`, `happy`, `sad`. A sign outside the six is either forced onto one of
-  them or comes out as `unclear`.
-- **`phrases.json` holds 17 glosses against the 6-sign head.** All six have a
-  phrase row; the other 11 are unused until the head grows.
+- **The glosses are wrong on your own signing, and that is expected.** The head
+  is still the pretrained 262-class one. Use the stream to check plumbing, never
+  as an accuracy signal.
+- **The vocabulary is not reconciled.** `phrases.json` holds 17 glosses against a
+  262-class head. A recognised sign with no phrase row comes out as `unclear`.
 - **Two definition-of-done items are unverified** — `/ping` answering from
   inside an App Lab container, and `stop` halting capture in the *live*
   recognition service.

@@ -130,7 +130,7 @@ flowchart TB
     subgraph R["recognition/ — Python >=3.12,<3.13"]
         R1["mediapipe 0.10.18"]
         R2["torch"]
-        R3["islkit — the bench's package"]
+        R3["islkit — the open-source ISL package"]
         R4["numpy < 2"]
     end
 
@@ -150,10 +150,9 @@ venv, and it cannot be broken by a numpy upgrade that uninstalls the landmark
 extractor. It is the process that holds device state and drives the audio path,
 and it has no way to fail to import.
 
-`islkit` — the feature encoder, the model and the inference code — is developed in
-the separate `islkit` project. On a laptop it is an editable install
-of a sibling checkout; on the board it is a wheel built on the laptop and copied
-across, because that keeps the board free of repository credentials.
+[`islkit`](https://github.com/jbrathwa/islkit) — the feature encoder, the model
+and the inference code — is a separate open-source package. It installs from
+PyPI on both laptop and board.
 
 ---
 

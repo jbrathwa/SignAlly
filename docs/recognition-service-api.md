@@ -6,9 +6,9 @@ vocabulary — that belongs to the orchestrator.
 
 Binds `127.0.0.1:9978`. The orchestrator takes 9977. Needs Python 3.12.
 
-This service now lives at `SignAlly/recognition/`, run as `python -m recognition`. `islkit` — the
-landmark encoder, model and inference code — is a separate package it depends on, developed in the
-`islkit` project.
+This service lives at `SignAlly/recognition/`, run as `python -m recognition`. The landmark encoder,
+model and inference code come from [`islkit`](https://github.com/jbrathwa/islkit), a separate
+open-source package installed from PyPI.
 
 ---
 
@@ -37,10 +37,10 @@ The straightforward path, and the closest to how the board runs.
 cd SignAlly/recognition
 python3.12 -m venv .venv
 source .venv/bin/activate
-pip install -e /path/to/islkit   # islkit — not on any index, a sibling checkout
+pip install islkit                       # landmark encoder, model and inference
 pip install -e ".[dev]"                  # the service itself
 mkdir -p ~/models && cp /path/to/classifier_262.pt /path/to/labels_262.json ~/models/
-.venv/bin/python -m pytest -q            # 94 tests, no camera needed
+.venv/bin/python -m pytest -q            # 100 tests, no camera needed
 ```
 
 Cameras appear as `/dev/videoN`, and the index passed to `--camera` is that N — except on the UNO Q,
@@ -56,7 +56,7 @@ one. Use PowerShell.
 cd SignAlly\recognition
 python -m venv .venv
 .venv\Scripts\activate
-pip install -e \path\to\islkit
+pip install islkit
 pip install -e ".[dev]"
 copy \path\to\classifier_262.pt \path\to\labels_262.json %USERPROFILE%\models\
 .venv\Scripts\python.exe -m pytest -q
@@ -76,15 +76,6 @@ Two things differ from Unix, both worth knowing before debugging the wrong thing
 As Linux. The terminal you launch from needs camera permission — macOS asks once; if that prompt is
 dismissed the camera silently returns no frames forever after.
 
-### Note on `uv`
-
-`uv sync` works fine inside the `islkit` project, where `islkit` **is** the project. It does
-**not** work inside `SignAlly/recognition`: that project's dependency on `islkit` is an editable
-install of a sibling checkout, not a package on any index, so `uv run` tries to resolve it from
-PyPI and fails with an unsatisfiable-version error. Use the venv's own interpreter directly —
-`.venv/bin/python -m recognition`, `.venv/bin/python -m pytest` — for every command in this doc that
-runs inside `recognition/`.
-
 ---
 
 ## 2. Commands, without `make`
@@ -94,7 +85,7 @@ interpreter directly, everywhere, including on the board.
 
 | What you want | Command |
 |---|---|
-| Install everything | `pip install -e /path/to/islkit && pip install -e ".[dev]"` |
+| Install everything | `pip install islkit && pip install -e ".[dev]"` |
 | Run the service | `.venv/bin/python -m recognition` |
 | Run it with flags | `.venv/bin/python -m recognition --camera 2` |
 | See every flag | `.venv/bin/python -m recognition --help` |
@@ -102,11 +93,6 @@ interpreter directly, everywhere, including on the board.
 
 With the venv activated, drop the `.venv/bin/` prefix: `python -m recognition --camera 2`. On
 Windows, `.venv\Scripts\python.exe -m recognition`.
-
-`islkit` itself keeps its own `make` targets and a working `uv sync`/`uv run` — those apply inside
-the `islkit` project (finding a working camera with `experiments/live_demo.py
---list-cameras`, linting, confirming torch's device, training). None of that changes here; it is
-simply a different project from the one this document is about.
 
 ---
 
@@ -116,11 +102,18 @@ One process, one camera, three routes. It holds the camera exclusively, so nothi
 it — quit Photo Booth, Zoom, and any browser tab with camera permission first.
 
 **1. Check a camera actually delivers frames.** Opening a device succeeds on hardware that never
-returns a pixel, so probe it properly. `live_demo.py` stays in the `islkit` project and its
-`uv run` works fine there:
+returns a pixel, so probe it properly — read a frame, don't just open the device. From
+`SignAlly/recognition`, with the service stopped:
 
 ```bash
-cd /path/to/islkit && uv run python experiments/live_demo.py --list-cameras
+.venv/bin/python -c "
+import cv2
+for i in range(6):
+    cap = cv2.VideoCapture(i)
+    ok, frame = cap.read()
+    cap.release()
+    print(i, frame.shape if ok and frame is not None else 'no frames')
+"
 ```
 
 On the UNO Q, don't do this by hand at all — `scripts/signally-start.sh` probes for a node that
@@ -293,7 +286,7 @@ curl -s -X POST localhost:9978/capture -d '{"active":true}'
               "rest_to_close": 3, "max_frames": 135},
  "min_frames": 8, "threshold": 0.6, "disk_free_mb": 2140,
  "subscribers": 1, "dropped_events": 0,
- "islkit_version": "0.2.0", "encoder_fingerprint": "6a85d7da43fc785d"}
+ "islkit_version": "0.1.0", "encoder_fingerprint": "6a85d7da43fc785d"}
 ```
 
 | Field | Meaning |
@@ -426,27 +419,20 @@ and each has already forced a design decision.
 ### Install a trimmed dependency set
 
 Not the bench's full one — `pandas`, `pyarrow` and `xgboost` are training-time only and waste scarce
-disk. `islkit` isn't on any package index, and it is not published, so the board
-can't `pip install` or `git clone` it directly. Build a wheel on the laptop and copy that instead —
-it needs no credentials on the device.
+disk. Plain `islkit`, without the `[train]` extra, is all the board needs.
 
 ```bash
-# On the laptop, inside islkit:
-uv build --wheel                                     # -> dist/islkit-0.2.0-py3-none-any.whl
-scp dist/islkit-0.2.0-py3-none-any.whl board:~/
-
-# On the board:
 df -h /                                              # before anything: is there room?
 python3.12 -m venv ~/SignAlly/recognition/.venv
 source ~/SignAlly/recognition/.venv/bin/activate
 
-pip install ~/islkit-0.2.0-py3-none-any.whl           # pulls mediapipe, numpy, torch — no extras
+pip install islkit                                   # pulls mediapipe, numpy, torch — no extras
 cd ~/SignAlly/recognition && pip install -e . --no-deps   # the service itself; islkit already satisfies it
 ```
 
 `opencv-python-headless` isn't installed by hand: `mediapipe==0.10.18` hard-requires
 `opencv-contrib-python` and installs it regardless of anything requested alongside it, so there is
-nothing to choose here — see `islkit/pyproject.toml`'s own comment on this.
+nothing to choose here — see `islkit`'s `pyproject.toml` comment on this.
 
 > ⚠️ **The pins are not negotiable.** **mediapipe 0.10.18 exactly** — the last release with an
 > aarch64 wheel that runs on ARMv8.0-A. There is no upgrade path on this hardware, ever; the CPU is
