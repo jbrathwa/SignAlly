@@ -18,7 +18,8 @@ the panel firmware, the App Lab console, and the script that starts it all.
 | `mcu/uno_q_mcu_uart_test/` | Bench harness: a mock state machine that drives the panel from typed commands with no stack running. Flashing it replaces the relay, so only one of the two is on the STM32 at a time |
 | `scripts/signally-start.sh` | Start, stop and inspect all three processes on the board |
 | `phrases.json` | The gloss → English + wav table the orchestrator is keyed on. 17 glosses |
-| `docs/` | [Architecture](docs/architecture.md), the [orchestrator](docs/orchestrator.md), the [display protocol](docs/display-protocol.md), the [panel](docs/panel.md), and the [recognition service API](docs/recognition-service-api.md) |
+| `docs/` | [Architecture](docs/architecture.md), the [orchestrator](docs/orchestrator.md), the [display protocol](docs/display-protocol.md), the [panel](docs/panel.md), [hardware](docs/hardware.md), and the [recognition service API](docs/recognition-service-api.md) |
+| `schematics/` | Power, display and button/audio schematic sheets (SVG + PNG). Built-vs-planned status and the bill of materials are in [the hardware doc](docs/hardware.md) |
 
 ```mermaid
 flowchart LR
