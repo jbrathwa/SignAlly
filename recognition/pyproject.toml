@@ -3,7 +3,7 @@ name = "recognition"
 version = "0.1.0"
 description = "Camera in, glosses out. The orchestrator's one upstream."
 requires-python = ">=3.12,<3.13"
-dependencies = ["islkit>=0.2,<0.3"]
+dependencies = ["islkit>=0.1,<0.2"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
