@@ -262,9 +262,12 @@ arriving.
 - **No sustained fps figure is written down** for any given
   checkpoint / resolution / `--model-complexity` combination. Read it from
   `/health` on each deployment rather than trusting a number quoted anywhere.
-- **The recognised glosses are wrong on your own signing, and that is expected.**
-  The head is still the pretrained 262-class one. Use the stream to verify
-  plumbing, never as an accuracy signal.
-- **The vocabulary is not reconciled.** `phrases.json` holds 17 glosses; the
-  recognition head knows 262. A recognised sign with no phrase row comes out as
-  `unclear`.
+- **The deployed head knows six signs.** `scripts/signally-start.sh` loads
+  `classifier_6.pt`, fine-tuned on the signer's own recordings: `hello`,
+  `thankyou`, `washroom`, `doctor`, `happy`, `sad`. The 262-class INCLUDE head is
+  only the recognition service's built-in default, and the 17-class INCLUDE-only
+  head scored 2/24 on this signer. A sign outside the six is either forced onto
+  one of them or falls below the threshold and comes out as `unclear`.
+- **`phrases.json` holds 17 glosses against the 6-sign head.** Every sign the head
+  knows has a phrase row, so nothing recognised falls through to `unclear` for
+  want of one; the other 11 rows are unused until the head grows.

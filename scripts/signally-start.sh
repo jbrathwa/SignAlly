@@ -62,12 +62,11 @@ RESOLUTION="${RESOLUTION:-640x480}"
 # MP_THREADS=0 restores MediaPipe's own default.
 MP_THREADS="${MP_THREADS:-3}"
 
-# The 17-class head trained for this device's camera (islkit experiments/
-# device_head.py), not the 262-class INCLUDE one. The vocabulary matches
-# phrases.json exactly, so a recognised gloss always has somewhere to go —
-# with the 262-class head, 245 of its classes had no phrase row and every one
-# of them became "unclear".
-CLASSIFIER="${CLASSIFIER:-$HOME/models/classifier_17.pt}"
+# The 6-sign head fine-tuned on the signer's own recordings (islkit
+# experiments/finetune.py): hello, thankyou, washroom, doctor, happy, sad.
+# labels_6.json must sit beside it. The 17-class INCLUDE-only head scored 2/24
+# on this signer, so it is not the default any more.
+CLASSIFIER="${CLASSIFIER:-$HOME/models/classifier_6.pt}"
 
 # The annotated debug view, on its own port. The recognition API stays on
 # loopback — nothing off the board should be able to start the camera — but this

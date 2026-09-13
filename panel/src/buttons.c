@@ -18,8 +18,9 @@ static bool mic_muted = false;
 static bool isMuted = false;
 
 /* Whether the device is actively trying to capture/watch for a sign. NOT
- * overall device power -- see buttons.h. Mutated only from
- * on_start_stop_pressed() below, per current screen. */
+ * overall device power -- see buttons.h. Flipped by on_start_stop_pressed()
+ * below, and kept in step with the orchestrator's screens through
+ * buttons_set_capture_active(). */
 static bool isCaptureActive = false;
 
 /**
@@ -73,45 +74,33 @@ static bool button_pressed_edge(btn_t *btn)
 /**
  * Shared "Start/Stop pressed" handler.
  *
- * Branches by CURRENT SCREEN -- the button means something different on each
- * one, so this stays the single place that keeps isCaptureActive and the
- * screen transition in sync rather than scattering per-screen logic
- * elsewhere. The ANALYZING branch is the "cancel": the Listening/Analyzing
- * simulated-capture stub (src/capture_stub.c) is purely reactive to
- * ui_get_state()/buttons_capture_is_active() polling, so simply moving the
- * screen back to LISTENING here is enough to cancel it -- no separate cancel
- * API needed.
+ * A plain toggle on isCaptureActive, NOT on the current screen. While capture
+ * is on, the orchestrator moves the panel between LISTENING, ANALYZING, RESULT
+ * and ERROR many times a minute -- "Nobody in frame" and "Move back" alone
+ * land on ERROR every few seconds -- so a press can arrive on any of them and
+ * must mean Stop on every one. Branching by screen used to send "start" from
+ * RESULT and ERROR, which the orchestrator ignores while already capturing,
+ * so Stop appeared to do nothing.
+ *
+ * Stop goes to INTRO immediately rather than waiting for the orchestrator's
+ * `state idle`, which follows anyway. Start goes to LISTENING the same way.
+ * The capture stub (src/capture_stub.c) is purely reactive to
+ * ui_get_state()/buttons_capture_is_active() polling, so leaving LISTENING
+ * here is enough to cancel it -- no separate cancel API needed.
  */
 static void on_start_stop_pressed(void)
 {
-    switch (ui_get_state()) {
-        case UI_STATE_BOOT:
-            /* Ignored: no controls are live during the splash. */
-            break;
-
-        case UI_STATE_INTRO:
-            isCaptureActive = true;
-            ui_set_state(UI_STATE_LISTENING);
-            break;
-
-        case UI_STATE_LISTENING:
-            isCaptureActive = !isCaptureActive;
-            /* No screen change -- stays on LISTENING either way. */
-            break;
-
-        case UI_STATE_ANALYZING:
-            /* isCaptureActive stays true: the device is still trying, just
-             * restarting the wait from LISTENING. */
-            ui_set_state(UI_STATE_LISTENING);
-            break;
-
-        case UI_STATE_RESULT:
-        case UI_STATE_ERROR:
-            isCaptureActive = true;
-            ui_clear_result();
-            ui_set_state(UI_STATE_LISTENING);
-            break;
+    if (ui_get_state() == UI_STATE_BOOT) {
+        /* Ignored: no controls are live during the splash. */
+        return;
     }
+
+    isCaptureActive = !isCaptureActive;
+
+    /* Leaving RESULT wipes the label so a stale sentence cannot flash on the
+     * next RESULT before its text arrives -- same rule as uart_link.cpp. */
+    ui_clear_result();
+    ui_set_state(isCaptureActive ? UI_STATE_LISTENING : UI_STATE_INTRO);
 
     ESP_LOGI(TAG, "Start/Stop pressed -> isCaptureActive=%s, state=%d",
              isCaptureActive ? "true" : "false", (int)ui_get_state());
@@ -161,6 +150,11 @@ void buttons_set_speaker_muted(bool muted)
 bool buttons_capture_is_active(void)
 {
     return isCaptureActive;
+}
+
+void buttons_set_capture_active(bool active)
+{
+    isCaptureActive = active;
 }
 
 void buttons_init(void)

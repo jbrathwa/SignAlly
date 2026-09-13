@@ -6,9 +6,10 @@ Run:  python -m recognition
 Three routes on 127.0.0.1:9978 — GET /results (SSE), POST /capture, GET /health.
 The orchestrator is the only consumer. Nothing here knows what a screen is.
 
-The head is still the pretrained 262-class one, so the glosses this streams
-**will usually be wrong on your own signing, and that is expected** — S7 replaces
-the head. Never read them as an accuracy signal.
+The built-in default checkpoint is the pretrained 262-class head, whose glosses
+**will usually be wrong on your own signing** — never read them as an accuracy
+signal. The device runs the fine-tuned 6-sign head instead, passed by
+scripts/signally-start.sh through --classifier.
 """
 
 from __future__ import annotations

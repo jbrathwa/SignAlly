@@ -88,12 +88,22 @@ void buttons_set_speaker_muted(bool muted);
 /**
  * @brief Whether the device is actively trying to capture/watch for a sign.
  * This is NOT overall device power state -- that is a separate concern for a
- * future power-module pass. Read-only here: on_start_stop_pressed() in
- * buttons.c is the sole owner of every transition of this flag, per-screen
- * (see its switch on ui_get_state()) rather than a single unconditional
- * action, so there is deliberately no public setter.
+ * future power-module pass. The Start/Stop button toggles it; see
+ * buttons_set_capture_active() for the only other writer.
  */
 bool buttons_capture_is_active(void);
+
+/**
+ * @brief Sync the capture flag to a screen the orchestrator sent.
+ *
+ * The button is a toggle, so the flag has to match what the device is really
+ * doing or the next press sends the wrong word. It drifts whenever the screen
+ * moves without a press: the orchestrator resending `listening` after a panel
+ * reboot, or `idle` after a stop from the console page. Called from
+ * uart_link.cpp for `state` messages only -- RESULT and ERROR say nothing
+ * about whether capture is still on, so they leave the flag alone.
+ */
+void buttons_set_capture_active(bool active);
 
 #ifdef __cplusplus
 }

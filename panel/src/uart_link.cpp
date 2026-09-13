@@ -83,6 +83,15 @@ static void apply_state(int state, unsigned long seq)
         ui_clear_result();
     }
 
+    /* Keep the Start/Stop toggle honest when the screen moves without a press.
+     * RESULT and ERROR are left alone: they arrive mid-capture and after a
+     * failed start alike, so they say nothing about the flag. */
+    if (state == UART_STATE_INTRO) {
+        buttons_set_capture_active(false);
+    } else if (state == UART_STATE_LISTENING || state == UART_STATE_ANALYZING) {
+        buttons_set_capture_active(true);
+    }
+
     mcu_owns_state = true;
     ui_set_state((ui_state_t)state);
     send_ack(seq);

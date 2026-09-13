@@ -1,6 +1,7 @@
 /**
  * @file ui_center.c
- * Center Dynamic Section (4-State Machine) Implementation for Portrait 240x320 HMI
+ * Center Dynamic Section (6-screen state machine) Implementation for Portrait 240x320 HMI
+ * Screens and the flows between them: docs/panel.md section 3.
  */
 
 #include "ui_center.h"
@@ -263,14 +264,7 @@ lv_obj_t* ui_center_create(lv_obj_t *parent)
     lv_obj_set_style_text_font(intro_start_stop, &lv_font_montserrat_14, LV_PART_MAIN);
     lv_obj_set_style_text_color(intro_start_stop, UI_COLOR_TEXT_RESULT, LV_PART_MAIN);
     lv_obj_set_style_text_align(intro_start_stop, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
-    lv_obj_align(intro_start_stop, LV_ALIGN_CENTER, 0, -16);
-
-    lv_obj_t *intro_mute = lv_label_create(intro_cont);
-    lv_label_set_text(intro_mute, "Press " LV_SYMBOL_RIGHT " to Mute / Unmute");
-    lv_obj_set_style_text_font(intro_mute, &lv_font_montserrat_14, LV_PART_MAIN);
-    lv_obj_set_style_text_color(intro_mute, UI_COLOR_TEXT_RESULT, LV_PART_MAIN);
-    lv_obj_set_style_text_align(intro_mute, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
-    lv_obj_align(intro_mute, LV_ALIGN_CENTER, 0, 16);
+    lv_obj_align(intro_start_stop, LV_ALIGN_CENTER, 0, 0);
 
     lv_obj_t *intro_hint = lv_label_create(intro_cont);
     lv_label_set_text(intro_hint, "Tap Start to begin");
@@ -354,7 +348,8 @@ lv_obj_t* ui_center_create(lv_obj_t *parent)
     lv_obj_align(error_label, LV_ALIGN_CENTER, 0, -8);
 
     /* Power-on sequence: BOOT (auto-advances) -> INTRO (waits for Start/Stop)
-     * -> the 4-state loop. Neither BOOT nor INTRO is revisited afterward. */
+     * -> the capture loop. Stop returns to INTRO; BOOT is not revisited until
+     * a reboot. */
     ui_set_state(UI_STATE_BOOT);
 
     return center_main_cont;

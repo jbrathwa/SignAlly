@@ -116,8 +116,10 @@ them, and refuses if the two disagree about the class count:
 mkdir -p ~/models && cp /path/to/classifier_262.pt /path/to/labels_262.json ~/models/
 ```
 
-`~/models/classifier_262.pt` is the default; `--classifier` or
-`$RECOGNITION_CLASSIFIER` override it. On the board, `islkit` goes on as a wheel
+`~/models/classifier_262.pt` is the service's own default; `--classifier` or
+`$RECOGNITION_CLASSIFIER` override it. On the device, `scripts/signally-start.sh`
+passes the fine-tuned 6-sign head instead — `~/models/classifier_6.pt`, with
+`labels_6.json` beside it. On the board, `islkit` goes on as a wheel
 built on the laptop (`uv build --wheel`, then `scp`) rather than an editable
 install — the board needs no repository credentials for it. Full install, run and consume guide, board included:
 [`docs/recognition-service-api.md`](docs/recognition-service-api.md).
@@ -165,11 +167,12 @@ server.
 
 - **It makes no sound on the UNO Q.** The board has no reachable audio output. The path is built and tested; the
   wav files do not exist yet. Missing files are logged and skipped.
-- **The glosses are wrong on your own signing, and that is expected.** The head
-  is still the pretrained 262-class one. Use the stream to check plumbing, never
-  as an accuracy signal.
-- **The vocabulary is not reconciled.** `phrases.json` holds 17 glosses against a
-  262-class head. A recognised sign with no phrase row comes out as `unclear`.
+- **Recognition covers six signs.** The start script loads `classifier_6.pt`,
+  fine-tuned on the signer's own recordings: `hello`, `thankyou`, `washroom`,
+  `doctor`, `happy`, `sad`. A sign outside the six is either forced onto one of
+  them or comes out as `unclear`.
+- **`phrases.json` holds 17 glosses against the 6-sign head.** All six have a
+  phrase row; the other 11 are unused until the head grows.
 - **Two definition-of-done items are unverified** — `/ping` answering from
   inside an App Lab container, and `stop` halting capture in the *live*
   recognition service.

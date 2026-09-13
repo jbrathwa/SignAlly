@@ -148,9 +148,11 @@ curl -sN localhost:9978/results
 curl -s -X POST localhost:9978/capture -d '{"active":true}'
 ```
 
-> ⚠️ **The glosses will be wrong.** The head is still the pretrained 262-class one. On your own
-> signing it returns things like `truck` for *hello*, and that is expected rather than a defect —
-> S7 replaces the head. Use this to verify plumbing, never as an accuracy signal.
+> ⚠️ **Run bare, the glosses will be wrong.** The service's default checkpoint is the pretrained
+> 262-class head, which returns things like `truck` for *hello* on your own signing — use it to
+> verify plumbing, never as an accuracy signal. The device runs the fine-tuned 6-sign head instead:
+> `scripts/signally-start.sh` passes `--classifier ~/models/classifier_6.pt` (`hello`, `thankyou`,
+> `washroom`, `doctor`, `happy`, `sad`).
 
 ---
 
@@ -550,6 +552,7 @@ arriving.
 - **The confidence threshold is not settled.** 0.6 is a placeholder — the model is wildly
   overconfident out of distribution (0.9978 on random noise), so a plain softmax cutoff cannot
   separate "confident and right" from "confident and garbage". Re-derive against the fine-tuned head.
-- **The vocabulary is not reconciled.** `data/vocab.json` holds 17 glosses; the original architecture plan is
-  written around about twelve phrases. The orchestrator's phrase table is keyed by gloss, so a
-  mismatch means a recognised sign the device cannot say. Settle before writing that table.
+- **The deployed vocabulary is six signs against 17 phrases.** The head on the device
+  (`classifier_6.pt`) knows `hello`, `thankyou`, `washroom`, `doctor`, `happy` and `sad`, and every
+  one has a row in the orchestrator's `phrases.json`. The phrase table is keyed by gloss, so a head
+  that grows must add its new glosses there too, or they come out as `unclear`.
